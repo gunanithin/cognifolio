@@ -1402,6 +1402,7 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     font-weight: 800;
     letter-spacing: -0.02em;
     background: linear-gradient(135deg, #fff, #cbd5e1);
+    background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
@@ -2241,13 +2242,6 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
-  }
-
-  .entity-item {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border-color);
-    padding: 10px;
-    border-radius: var(--radius-sm);
   }
 
   .entity-key {

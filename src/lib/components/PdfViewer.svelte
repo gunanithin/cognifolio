@@ -1167,7 +1167,7 @@
     word-break: break-word;
   }
 
-  .empty-text-note {
+  :global(.empty-text-note) {
     color: var(--text-dim);
     font-style: italic;
   }
