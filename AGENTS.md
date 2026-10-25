@@ -136,7 +136,13 @@ npm run format:check
 
 ---
 
-## 7. Git Workflow
+## 7. Git Workflow & Mandatory Approval Rule
+
+> [!CAUTION]
+> ### Mandatory Developer Approval for Git Commits & Pushes
+> **NEVER run `git commit`, `git push`, or alter remote git history without explicit developer approval and consent.**
+> - AI agents and automated scripts must always propose changes, present diffs to the developer, and wait for explicit confirmation before executing `git commit` or `git push`.
+> - Always summarize modified files and request developer authorization prior to committing or pushing code.
 
 - **Branch**: Feature branches or `main`.
 - **Commit Messages**: Follow Conventional Commits format:
