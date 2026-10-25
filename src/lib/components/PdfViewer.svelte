@@ -2,6 +2,7 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import * as pdfjsLib from 'pdfjs-dist';
   import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+  import CIcon from '../icons/CIcon.svelte';
 
   // Props
   export let fileUrl = '';
@@ -1026,14 +1027,17 @@
           {/if}
           <button
             type="button"
-            class="clear-chip-btn"
+            class="clear-chip-btn flex items-center justify-center"
             on:click={() => {
               highlightQuery = '';
               highlightBoxes = [];
               locateStatus = '';
               currentQueryLabel = '';
-            }}>✕</button
+            }}
+            title="Clear highlight"
           >
+            <CIcon name="close" size={11} />
+          </button>
         </div>
       {/if}
     </div>
@@ -1047,26 +1051,30 @@
             class="tool-btn"
             on:click={() => changePage(-1)}
             disabled={currentPage <= 1}
-            title="Previous page">◀</button
+            title="Previous page"
           >
+            <CIcon name="chevron-left" size={12} />
+          </button>
           <span class="page-indicator">Page {currentPage} of {totalPages}</span>
           <button
             type="button"
             class="tool-btn"
             on:click={() => changePage(1)}
             disabled={currentPage >= totalPages}
-            title="Next page">▶</button
+            title="Next page"
           >
+            <CIcon name="chevron-right" size={12} />
+          </button>
         </div>
 
         <div class="zoom-controls">
-          <button type="button" class="tool-btn" on:click={() => changeZoom(-0.25)} title="Zoom out"
-            >-</button
-          >
+          <button type="button" class="tool-btn" on:click={() => changeZoom(-0.25)} title="Zoom out">
+            <CIcon name="minus" size={12} />
+          </button>
           <span class="zoom-indicator">{Math.round(zoomScale * 100)}%</span>
-          <button type="button" class="tool-btn" on:click={() => changeZoom(0.25)} title="Zoom in"
-            >+</button
-          >
+          <button type="button" class="tool-btn" on:click={() => changeZoom(0.25)} title="Zoom in">
+            <CIcon name="plus" size={12} />
+          </button>
         </div>
       </div>
     {/if}
@@ -1120,8 +1128,9 @@
     flex-direction: column;
     height: 100%;
     width: 100%;
-    background: rgba(10, 14, 23, 0.6);
-    border-radius: var(--radius-sm);
+    background: #ffffff;
+    border-radius: 6px;
+    border: 1px solid #e5e5e5;
     overflow: hidden;
   }
 
@@ -1130,8 +1139,8 @@
     justify-content: space-between;
     align-items: center;
     padding: 10px 16px;
-    background: rgba(15, 23, 42, 0.95);
-    border-bottom: 1px solid var(--border-color);
+    background: #ffffff;
+    border-bottom: 1px solid #e5e5e5;
     gap: 12px;
     flex-wrap: wrap;
     z-index: 10;
@@ -1146,26 +1155,27 @@
 
   .mode-toggle {
     display: flex;
-    background: rgba(0, 0, 0, 0.4);
-    padding: 3px;
-    border-radius: var(--radius-full);
-    border: 1px solid var(--border-color);
+    background: #f6f6f6;
+    padding: 2px;
+    border-radius: 4px;
+    border: 1px solid #e5e5e5;
   }
 
   .mode-btn {
     background: transparent;
-    color: var(--text-muted);
+    color: #666666;
     font-size: 0.78rem;
     padding: 5px 14px;
-    border-radius: var(--radius-full);
-    font-weight: 500;
+    border-radius: 4px;
+    font-weight: 600;
+    transition: all 0.2s ease;
   }
 
   .mode-btn.active {
-    background: var(--accent-cyan);
-    color: #080d1a;
-    font-weight: 700;
-    box-shadow: 0 0 12px rgba(6, 182, 212, 0.4);
+    background: #111111;
+    color: #ffffff;
+    font-weight: 600;
+    box-shadow: none;
   }
 
   .mode-btn:disabled {
@@ -1177,20 +1187,20 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    background: rgba(245, 158, 11, 0.15);
-    border: 1px solid rgba(245, 158, 11, 0.45);
-    color: #fbbf24;
+    background: #fefce8;
+    border: 1px solid #fde047;
+    color: #854d0e;
     padding: 4px 12px;
-    border-radius: var(--radius-full);
+    border-radius: 4px;
     font-size: 0.76rem;
+    font-weight: 600;
   }
 
   .chip-dot {
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: #f59e0b;
-    box-shadow: 0 0 8px #f59e0b;
+    background: #ca8a04;
     animation: pulse 1.5s infinite;
   }
 
@@ -1207,11 +1217,11 @@
   }
 
   .locate-badge-pill {
-    background: rgba(6, 182, 212, 0.2);
-    border: 1px solid rgba(6, 182, 212, 0.4);
-    color: #67e8f9;
+    background: #f6f6f6;
+    border: 1px solid #111111;
+    color: #111111;
     padding: 2px 8px;
-    border-radius: 4px;
+    border-radius: 3px;
     font-size: 0.72rem;
     font-weight: 600;
   }
@@ -1229,27 +1239,31 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    background: rgba(0, 0, 0, 0.3);
+    background: #f6f6f6;
     padding: 3px 8px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    border: 1px solid #e5e5e5;
   }
 
   .tool-btn {
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
+    background: #ffffff;
+    color: #111111;
+    border: 1px solid #e5e5e5;
     width: 26px;
     height: 26px;
-    border-radius: 4px;
+    border-radius: 3px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 0.78rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
   }
 
   .tool-btn:hover:not(:disabled) {
-    background: var(--accent-cyan);
-    color: #080d1a;
+    background: #111111;
+    color: #ffffff;
+    border-color: #111111;
   }
 
   .tool-btn:disabled {
@@ -1260,7 +1274,8 @@
   .page-indicator,
   .zoom-indicator {
     font-size: 0.76rem;
-    color: var(--text-muted);
+    color: #333333;
+    font-weight: 600;
     font-family: var(--font-mono);
   }
 
@@ -1269,7 +1284,7 @@
     overflow: hidden;
     position: relative;
     display: flex;
-    background: #090c15;
+    background: #f6f6f6;
   }
 
   .canvas-scroll-wrapper {
@@ -1287,8 +1302,9 @@
   }
 
   .pdf-canvas {
-    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.7);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
     border-radius: 4px;
+    border: 1px solid #e5e5e5;
     background: #fff;
     display: block;
   }
@@ -1296,9 +1312,9 @@
   /* Real-time Bounding Box over Canvas Text */
   .canvas-bounding-box {
     position: absolute;
-    border: 2px solid #f59e0b;
+    border: 2px solid #b45309;
     background: rgba(245, 158, 11, 0.22);
-    box-shadow: 0 0 18px rgba(245, 158, 11, 0.7);
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.5);
     border-radius: 4px;
     pointer-events: none;
     z-index: 5;
@@ -1307,14 +1323,14 @@
 
   @keyframes boxGlow {
     0% {
-      border-color: #f59e0b;
-      background: rgba(245, 158, 11, 0.2);
-      box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+      border-color: #b45309;
+      background: rgba(245, 158, 11, 0.18);
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
     }
     100% {
-      border-color: #fbbf24;
-      background: rgba(245, 158, 11, 0.42);
-      box-shadow: 0 0 24px rgba(245, 158, 11, 0.95);
+      border-color: #d97706;
+      background: rgba(245, 158, 11, 0.35);
+      box-shadow: 0 0 18px rgba(245, 158, 11, 0.75);
     }
   }
 
@@ -1322,14 +1338,13 @@
     position: absolute;
     top: -24px;
     left: -2px;
-    background: #f59e0b;
-    color: #0f172a;
+    background: #111111;
+    color: #ffffff;
     font-size: 0.68rem;
-    font-weight: 800;
+    font-weight: 700;
     padding: 2px 7px;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
-    letter-spacing: 0.03em;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
     display: inline-flex;
     align-items: center;
@@ -1348,19 +1363,23 @@
     max-width: 100%;
     height: auto;
     border-radius: 4px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    border: 1px solid #e5e5e5;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
   }
 
   .text-viewer-wrapper {
     flex: 1;
     height: 100%;
     overflow-y: auto;
-    background: rgba(0, 0, 0, 0.35);
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    margin: 16px;
+    border-radius: 4px;
     padding: 24px;
     font-family: var(--font-mono);
     font-size: 0.85rem;
     line-height: 1.7;
-    color: #cbd5e1;
+    color: #111111;
   }
 
   .text-content {
@@ -1369,93 +1388,78 @@
   }
 
   :global(.empty-text-note) {
-    color: var(--text-dim);
+    color: #888888;
     font-style: italic;
   }
 
   /* Global mark styling for highlighted text */
   :global(.text-content mark.active-highlight) {
-    background: rgba(245, 158, 11, 0.35) !important;
-    color: #fef08a !important;
-    border: 1px solid #f59e0b !important;
+    background: #fef08a !important;
+    color: #111111 !important;
+    border: 1px solid #ca8a04 !important;
     border-radius: 3px !important;
     padding: 2px 6px !important;
     font-weight: 700 !important;
-    box-shadow: 0 0 14px rgba(245, 158, 11, 0.6) !important;
   }
 
   :global(.text-content .focal-line-wrapper) {
-    background: rgba(245, 158, 11, 0.12) !important;
-    border-left: 3px solid #f59e0b !important;
+    background: #fefce8 !important;
+    border-left: 3px solid #111111 !important;
     padding-left: 10px !important;
-    border-radius: 4px !important;
+    border-radius: 3px !important;
     margin: 6px 0 !important;
     display: block !important;
-    box-shadow: 0 0 16px rgba(245, 158, 11, 0.15) !important;
   }
 
   :global(.text-content mark.focal-target) {
-    background: rgba(245, 158, 11, 0.5) !important;
-    color: #ffffff !important;
-    border: 1.5px solid #fbbf24 !important;
-    border-radius: 4px !important;
+    background: #fde047 !important;
+    color: #111111 !important;
+    border: 1.5px solid #111111 !important;
+    border-radius: 3px !important;
     padding: 3px 8px !important;
     font-weight: 800 !important;
     position: relative !important;
     display: inline-block !important;
-    box-shadow: 0 0 18px rgba(245, 158, 11, 0.85) !important;
-    animation: focalPulse 1.6s infinite alternate ease-in-out !important;
-  }
-
-  @keyframes focalPulse {
-    0% {
-      background: rgba(245, 158, 11, 0.45);
-      box-shadow: 0 0 12px rgba(245, 158, 11, 0.6);
-    }
-    100% {
-      background: rgba(245, 158, 11, 0.8);
-      box-shadow: 0 0 24px rgba(245, 158, 11, 0.95);
-    }
   }
 
   :global(.text-content .focal-target-badge) {
     position: absolute;
     top: -22px;
     left: 0;
-    background: #f59e0b;
-    color: #0f172a;
+    background: #111111;
+    color: #ffffff;
     font-size: 0.65rem;
-    font-weight: 800;
+    font-weight: 700;
     padding: 1px 7px;
     border-radius: 3px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
     white-space: nowrap;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
     pointer-events: none;
     z-index: 5;
   }
 
   :global(.text-content mark.secondary-match) {
-    background: rgba(245, 158, 11, 0.18) !important;
-    color: #fef08a !important;
-    border-bottom: 1px dashed #f59e0b !important;
+    background: #fef9c3 !important;
+    color: #111111 !important;
+    border-bottom: 1px dashed #ca8a04 !important;
     padding: 1px 4px !important;
     font-weight: 600 !important;
     border-radius: 2px !important;
   }
 
   :global(.text-content .text-page-divider) {
-    color: var(--accent-cyan);
+    color: #111111;
     font-weight: 700;
-    border-top: 1px solid rgba(56, 189, 248, 0.25);
-    border-bottom: 1px solid rgba(56, 189, 248, 0.25);
-    background: rgba(56, 189, 248, 0.06);
+    border-top: 1px solid #111111;
+    border-bottom: 1px solid #111111;
+    background: #f6f6f6;
     padding: 6px 12px;
     margin: 20px 0 12px 0;
-    border-radius: 4px;
-    font-size: 0.82rem;
-    letter-spacing: 0.05em;
+    border-radius: 2px;
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
   .loading-overlay {
@@ -1464,19 +1468,20 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(8, 13, 26, 0.85);
+    background: rgba(246, 246, 246, 0.9);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 12px;
     z-index: 10;
+    color: #111111;
   }
 
   .spinner-large {
     width: 32px;
     height: 32px;
-    border: 3px solid var(--accent-cyan);
+    border: 3px solid #111111;
     border-top-color: transparent;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
