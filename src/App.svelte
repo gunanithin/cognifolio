@@ -357,10 +357,10 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
         console.warn('Could not auto-start guest session:', err);
       }
     }
-    await refreshAll();
+    await refreshAll(true);
   });
 
-  async function refreshAll() {
+  async function refreshAll(isInitial = false) {
     try {
       health = await fetchHealth();
       stats = await getDashboardStats();
@@ -371,7 +371,11 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
       }
       await refreshCompliance();
     } catch (err) {
-      errorMsg = err.message;
+      if (!isInitial) {
+        errorMsg = err.message;
+      } else {
+        console.warn('Backend warm-up in progress:', err.message);
+      }
     }
   }
 
