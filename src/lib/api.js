@@ -1,6 +1,157 @@
 const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 const API_BASE = `${API_URL}/api/v1`;
 
+const TOKEN_KEY = 'cognifolio_access_token';
+const USER_KEY = 'cognifolio_user';
+
+// ==========================================
+// Authentication State Management
+// ==========================================
+
+export function getAuthToken() {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function getCurrentUser() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthSession(token, user) {
+  if (typeof window === 'undefined') return;
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+export function clearAuthSession() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+}
+
+// ==========================================
+// Centralized Authenticated Fetch Client
+// ==========================================
+
+async function authFetch(endpoint, options = {}) {
+  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
+  const token = getAuthToken();
+
+  const headers = new Headers(options.headers || {});
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
+  return response;
+}
+
+// ==========================================
+// Authentication Endpoints
+// ==========================================
+
+export async function registerUser(name, email, password) {
+  const res = await fetch(`${API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Registration failed');
+  }
+
+  const data = await res.json();
+  setAuthSession(data.access_token, data.user);
+  return data;
+}
+
+export async function loginUser(email, password) {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Invalid email or password');
+  }
+
+  const data = await res.json();
+  setAuthSession(data.access_token, data.user);
+  return data;
+}
+
+export async function startGuestSession() {
+  const res = await fetch(`${API_BASE}/auth/guest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to initialize guest playground session');
+  }
+
+  const data = await res.json();
+  setAuthSession(data.access_token, data.user);
+  return data;
+}
+
+export async function loginWithGoogle(idToken, email = null, name = null, avatarUrl = null) {
+  const res = await fetch(`${API_BASE}/auth/google`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id_token: idToken,
+      email,
+      name,
+      avatar_url: avatarUrl,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Google sign-in verification failed');
+  }
+
+  const data = await res.json();
+  setAuthSession(data.access_token, data.user);
+  return data;
+}
+
+export async function fetchUserProfile() {
+  const res = await authFetch('/auth/me');
+  if (!res.ok) {
+    if (res.status === 401) {
+      clearAuthSession();
+    }
+    return null;
+  }
+  const user = await res.json();
+  setAuthSession(getAuthToken(), user);
+  return user;
+}
+
+export function logout() {
+  clearAuthSession();
+}
+
+// ==========================================
+// Core Document & Intelligence Services
+// ==========================================
 
 export async function fetchHealth() {
   try {
@@ -16,13 +167,13 @@ export async function uploadDocument(file, retentionDays = 90) {
   formData.append('file', file);
   formData.append('retention_days', retentionDays);
 
-  const res = await fetch(`${API_BASE}/documents/upload`, {
+  const res = await authFetch('/documents/upload', {
     method: 'POST',
     body: formData,
   });
 
   if (!res.ok) {
-    const err = await res.json();
+    const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || 'Upload failed');
   }
 
@@ -34,19 +185,27 @@ export async function listDocuments(filters = {}) {
   if (filters.doc_type) params.append('doc_type', filters.doc_type);
   if (filters.status) params.append('status', filters.status);
 
-  const res = await fetch(`${API_BASE}/documents?${params.toString()}`);
-  if (!res.ok) throw new Error('Failed to fetch documents');
+  const res = await authFetch(`/documents?${params.toString()}`);
+  if (!res.ok) {
+    if (res.status === 401) {
+      // Auto-fallback to guest if visited directly without session
+      await startGuestSession();
+      const retryRes = await authFetch(`/documents?${params.toString()}`);
+      if (retryRes.ok) return await retryRes.json();
+    }
+    throw new Error('Failed to fetch documents');
+  }
   return await res.json();
 }
 
 export async function getDocument(id) {
-  const res = await fetch(`${API_BASE}/documents/${id}`);
+  const res = await authFetch(`/documents/${id}`);
   if (!res.ok) throw new Error('Document not found');
   return await res.json();
 }
 
 export async function deleteDocument(id) {
-  const res = await fetch(`${API_BASE}/documents/${id}`, {
+  const res = await authFetch(`/documents/${id}`, {
     method: 'DELETE',
   });
   if (!res.ok) {
@@ -59,7 +218,7 @@ export async function deleteDocument(id) {
 }
 
 export async function semanticSearch(query, options = {}) {
-  const res = await fetch(`${API_BASE}/search`, {
+  const res = await authFetch('/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -74,13 +233,13 @@ export async function semanticSearch(query, options = {}) {
 }
 
 export async function getDashboardStats() {
-  const res = await fetch(`${API_BASE}/dashboard/stats`);
+  const res = await authFetch('/dashboard/stats');
   if (!res.ok) throw new Error('Failed to load dashboard metrics');
   return await res.json();
 }
 
 export async function getComplianceStats() {
-  const res = await fetch(`${API_BASE}/compliance/stats`);
+  const res = await authFetch('/compliance/stats');
   if (!res.ok) throw new Error('Failed to load compliance stats');
   return await res.json();
 }
@@ -92,13 +251,13 @@ export async function getAuditLogs(params = {}) {
   if (params.limit) q.append('limit', params.limit);
   if (params.offset) q.append('offset', params.offset);
 
-  const res = await fetch(`${API_BASE}/compliance/audit-logs?${q.toString()}`);
+  const res = await authFetch(`/compliance/audit-logs?${q.toString()}`);
   if (!res.ok) throw new Error('Failed to fetch audit logs');
   return await res.json();
 }
 
 export async function triggerDocumentRedaction(id) {
-  const res = await fetch(`${API_BASE}/compliance/redact/${id}`, {
+  const res = await authFetch(`/compliance/redact/${id}`, {
     method: 'POST',
   });
   if (!res.ok) throw new Error('Failed to apply redaction');
@@ -106,16 +265,19 @@ export async function triggerDocumentRedaction(id) {
 }
 
 export function getDocumentFileUrl(id) {
-  return `${API_BASE}/documents/${id}/file`;
+  const token = getAuthToken();
+  const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : '';
+  return `${API_BASE}/documents/${id}/file${tokenQuery}`;
 }
 
 export function getRedactedFileUrl(id) {
-  return `${API_BASE}/documents/${id}/redacted-file`;
+  const token = getAuthToken();
+  const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : '';
+  return `${API_BASE}/documents/${id}/redacted-file${tokenQuery}`;
 }
 
 export async function downloadAuditExport(format = 'csv') {
-  const url = `${API_BASE}/compliance/export?format=${format}`;
-  const res = await fetch(url);
+  const res = await authFetch(`/compliance/export?format=${format}`);
   if (!res.ok) throw new Error('Failed to export audit logs');
 
   const blob = await res.blob();
@@ -130,7 +292,7 @@ export async function downloadAuditExport(format = 'csv') {
 }
 
 export async function chatWithDocument(docId, message, conversationHistory = []) {
-  const res = await fetch(`${API_BASE}/documents/${docId}/chat`, {
+  const res = await authFetch(`/documents/${docId}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -151,7 +313,7 @@ export async function compareDocuments(baseDocumentId, targetDocumentId, focusAs
     target_document_id: targetDocumentId,
     ...(focusAspects && focusAspects.length ? { focus_aspects: focusAspects } : {}),
   };
-  const res = await fetch(`${API_BASE}/documents/compare`, {
+  const res = await authFetch('/documents/compare', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

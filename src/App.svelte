@@ -16,11 +16,49 @@
     getRedactedFileUrl,
     chatWithDocument,
     compareDocuments,
+    getAuthToken,
+    getCurrentUser,
+    startGuestSession,
+    logout,
   } from './lib/api.js';
   import PdfViewer from './lib/components/PdfViewer.svelte';
+  import AuthModal from './lib/components/AuthModal.svelte';
 
   // Navigation State
   let activeTab = 'dashboard'; // 'dashboard' | 'upload' | 'search' | 'viewer' | 'privacy' | 'compare'
+
+  // Auth & Multi-Tenancy State
+  let isAuthModalOpen = false;
+  let authModalMode = 'signin'; // 'signin' | 'signup'
+  let currentUser = getCurrentUser();
+
+  function openAuthModal(mode = 'signin') {
+    authModalMode = mode;
+    isAuthModalOpen = true;
+  }
+
+  async function handleAuthSuccess(event) {
+    currentUser = event.detail.user;
+    selectedDoc = null;
+    successMsg = currentUser.is_guest
+      ? 'Welcome to the Cognifolio Guest Playground!'
+      : `Welcome back, ${currentUser.name}!`;
+    await refreshAll();
+    setTimeout(() => { successMsg = ''; }, 3500);
+  }
+
+  async function handleLogout() {
+    logout();
+    currentUser = null;
+    selectedDoc = null;
+    try {
+      const g = await startGuestSession();
+      currentUser = g.user;
+    } catch {}
+    await refreshAll();
+    successMsg = 'Signed out. Switched to an isolated guest session.';
+    setTimeout(() => { successMsg = ''; }, 3000);
+  }
 
   // Global Data
   let health = { status: 'checking...', gemini_model: '', qdrant_location: '' };
@@ -310,6 +348,15 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
   ];
 
   onMount(async () => {
+    currentUser = getCurrentUser();
+    if (!getAuthToken()) {
+      try {
+        const guestData = await startGuestSession();
+        currentUser = guestData.user;
+      } catch (err) {
+        console.warn('Could not auto-start guest session:', err);
+      }
+    }
     await refreshAll();
   });
 
@@ -656,9 +703,43 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
       <div class="status-chip">
         <span class="pulse-indicator"></span>
         <span class="status-label"
-          >{health.status === 'online' ? 'Gemini 2.5 Flash' : 'System Ready'}</span
+          >{health.status === 'online' ? 'Gemini 3.5 Flash' : 'System Ready'}</span
         >
       </div>
+
+      <!-- Enterprise Auth Controls -->
+      {#if currentUser}
+        <div class="user-profile-menu">
+          <div class="user-avatar-badge" title={currentUser.email}>
+            {#if currentUser.avatar_url}
+              <img src={currentUser.avatar_url} alt={currentUser.name} class="user-avatar-img" />
+            {:else}
+              <span class="avatar-initials">{currentUser.name.slice(0, 2).toUpperCase()}</span>
+            {/if}
+          </div>
+          <div class="user-meta-info">
+            <span class="user-display-name">{currentUser.name}</span>
+            <span class="user-role-badge" class:badge-guest={currentUser.is_guest}>
+              {currentUser.is_guest ? '⚡ Guest Session' : currentUser.role.toUpperCase()}
+            </span>
+          </div>
+
+          {#if currentUser.is_guest}
+            <button class="btn-upgrade-account" on:click={() => openAuthModal('signup')}>
+              Save / Sign Up
+            </button>
+          {:else}
+            <button class="btn-signout" on:click={handleLogout} title="Sign Out">
+              Log Out
+            </button>
+          {/if}
+        </div>
+      {:else}
+        <div class="auth-buttons-group">
+          <button class="btn-auth-signin" on:click={() => openAuthModal('signin')}>Sign In</button>
+          <button class="btn-auth-signup" on:click={() => openAuthModal('signup')}>Get Started</button>
+        </div>
+      {/if}
     </div>
   </header>
 
@@ -801,6 +882,37 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     <!-- TAB 1: EXECUTIVE DASHBOARD -->
     {#if activeTab === 'dashboard'}
       <div class="dashboard-view">
+        {#if currentUser && currentUser.is_guest}
+          <div class="guest-playground-banner glass-card">
+            <div class="banner-badge-row">
+              <span class="banner-pill-pulse">🚀 Instant Playground Mode</span>
+              <span class="banner-pill-cyan">Multi-Tenant Isolated Sandbox</span>
+              <span class="banner-pill-purple">Google Gemini 3.5 Flash & Qdrant</span>
+            </div>
+            <div class="banner-content-grid">
+              <div class="banner-text">
+                <h1 class="banner-hero-title">Cognifolio — Enterprise Cognitive Document Intelligence</h1>
+                <p class="banner-hero-desc">
+                  Zero friction playground: upload PDFs to run real-time key-value extraction, semantic vector search, automated PII redaction, and multi-document comparative risk analysis.
+                </p>
+              </div>
+              <div class="banner-actions">
+                <button class="btn-primary" on:click={() => (activeTab = 'upload')}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  Upload PDF to Test
+                </button>
+                <button class="btn-upgrade-glow" on:click={() => openAuthModal('signup')}>
+                  ⚡ Sign Up / Save Data
+                </button>
+              </div>
+            </div>
+          </div>
+        {/if}
+
         <div class="view-header">
           <div>
             <h2>Enterprise Document Intelligence</h2>
@@ -2580,6 +2692,14 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
       </div>
     {/if}
   </main>
+
+  <!-- Enterprise Authentication Modal -->
+  <AuthModal
+    bind:isOpen={isAuthModalOpen}
+    initialMode={authModalMode}
+    on:success={handleAuthSuccess}
+    on:close={() => (isAuthModalOpen = false)}
+  />
 </div>
 
 <style>
@@ -2682,6 +2802,12 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     border-radius: var(--radius-full);
   }
 
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
   .nav-right .status-chip {
     display: flex;
     align-items: center;
@@ -2692,6 +2818,270 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     border-radius: var(--radius-full);
     font-size: 0.8rem;
     color: var(--text-muted);
+  }
+
+  /* User Profile & Auth Controls */
+  .user-profile-menu {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    padding: 4px 12px 4px 6px;
+    backdrop-filter: blur(8px);
+  }
+
+  .user-avatar-badge {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.75rem;
+    box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+  }
+
+  .user-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .avatar-initials {
+    letter-spacing: 0.5px;
+  }
+
+  .user-meta-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .user-display-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    line-height: 1.1;
+    max-width: 120px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .user-role-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--accent-cyan);
+  }
+
+  .user-role-badge.badge-guest {
+    color: #f59e0b;
+  }
+
+  .btn-upgrade-account {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #0f172a;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
+    transition: all 0.2s ease;
+  }
+
+  .btn-upgrade-account:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.5);
+  }
+
+  .btn-signout {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: #fca5a5;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn-signout:hover {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #fff;
+  }
+
+  .auth-buttons-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-auth-signin {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: #cbd5e1;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-auth-signin:hover {
+    color: #fff;
+    border-color: var(--accent-cyan);
+    background: rgba(6, 182, 212, 0.08);
+  }
+
+  .btn-auth-signup {
+    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+    border: none;
+    color: #080d1a;
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 6px 16px;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    box-shadow: 0 0 14px rgba(6, 182, 212, 0.3);
+    transition: all 0.2s;
+  }
+
+  .btn-auth-signup:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.5);
+  }
+
+  /* Guest Playground Hero Banner */
+  .guest-playground-banner {
+    margin-bottom: 24px;
+    padding: 24px 28px;
+    border: 1px solid rgba(6, 182, 212, 0.25);
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(30, 41, 59, 0.7) 100%);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25), 0 0 20px rgba(6, 182, 212, 0.08);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .guest-playground-banner::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #f59e0b, #06b6d4, #8b5cf6);
+  }
+
+  .banner-badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .banner-pill-pulse {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    color: #fbbf24;
+    border-radius: var(--radius-full);
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  .banner-pill-cyan {
+    padding: 3px 10px;
+    background: rgba(6, 182, 212, 0.12);
+    border: 1px solid rgba(6, 182, 212, 0.3);
+    color: #38bdf8;
+    border-radius: var(--radius-full);
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+
+  .banner-pill-purple {
+    padding: 3px 10px;
+    background: rgba(139, 92, 246, 0.12);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    color: #c084fc;
+    border-radius: var(--radius-full);
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+
+  .banner-content-grid {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .banner-text {
+    flex: 1;
+    min-width: 280px;
+  }
+
+  .banner-hero-title {
+    font-family: var(--font-heading);
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #fff;
+    margin: 0 0 6px 0;
+    line-height: 1.25;
+    background: linear-gradient(135deg, #ffffff 30%, #38bdf8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .banner-hero-desc {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin: 0;
+    line-height: 1.5;
+    max-width: 680px;
+  }
+
+  .banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .btn-upgrade-glow {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #0f172a;
+    font-weight: 700;
+    font-size: 0.88rem;
+    padding: 10px 20px;
+    border-radius: var(--radius-md);
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.35);
+    transition: all 0.2s ease;
+  }
+
+  .btn-upgrade-glow:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 24px rgba(245, 158, 11, 0.6);
   }
 
   /* Sub Navigation Tabs */
