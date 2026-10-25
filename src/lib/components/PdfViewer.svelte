@@ -69,7 +69,7 @@
         await handleQueryHighlight(highlightQuery);
       }
     } catch (err) {
-      console.warn("Could not load PDF canvas (falling back to text reader):", err);
+      console.warn('Could not load PDF canvas (falling back to text reader):', err);
       viewMode = 'text';
     } finally {
       isLoading = false;
@@ -91,8 +91,8 @@
       const dpr = window.devicePixelRatio || 1;
       canvas.width = Math.floor(viewport.width * dpr);
       canvas.height = Math.floor(viewport.height * dpr);
-      canvas.style.width = Math.floor(viewport.width) + "px";
-      canvas.style.height = Math.floor(viewport.height) + "px";
+      canvas.style.width = Math.floor(viewport.width) + 'px';
+      canvas.style.height = Math.floor(viewport.height) + 'px';
 
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
 
@@ -110,7 +110,7 @@
       }
     } catch (err) {
       if (err.name !== 'RenderingCancelledException') {
-        console.error("Error rendering PDF page:", err);
+        console.error('Error rendering PDF page:', err);
       }
     }
   }
@@ -154,12 +154,54 @@
 
     // Comprehensive stopwords
     const genericStopwords = new Set([
-      'the', 'and', 'for', 'with', 'from', 'that', 'this', 'have', 'been', 'under',
-      'their', 'your', 'shall', 'will', 'page', 'section', 'about', 'also', 'details',
-      'document', 'policy', 'invoice', 'agreement', 'point', 'identified', 'based',
-      'file', 'metadata', 'information', 'status', 'summary', 'report', 'company',
-      'limited', 'general', 'applicable', 'eligible', 'received', 'deduction', 'which',
-      'thereof', 'herein', 'whereas', 'hereby', 'therein', 'provided', 'including', 'copy'
+      'the',
+      'and',
+      'for',
+      'with',
+      'from',
+      'that',
+      'this',
+      'have',
+      'been',
+      'under',
+      'their',
+      'your',
+      'shall',
+      'will',
+      'page',
+      'section',
+      'about',
+      'also',
+      'details',
+      'document',
+      'policy',
+      'invoice',
+      'agreement',
+      'point',
+      'identified',
+      'based',
+      'file',
+      'metadata',
+      'information',
+      'status',
+      'summary',
+      'report',
+      'company',
+      'limited',
+      'general',
+      'applicable',
+      'eligible',
+      'received',
+      'deduction',
+      'which',
+      'thereof',
+      'herein',
+      'whereas',
+      'hereby',
+      'therein',
+      'provided',
+      'including',
+      'copy',
     ]);
 
     // 2. Numbers & Amounts extraction (handles Indian 10,00,000, Western 1,000,000, decimals, and plain digits)
@@ -180,8 +222,34 @@
 
     // 3. Date Aliases generation
     const dateAliases = new Set();
-    const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-    const monthsFull = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+    const months = [
+      'jan',
+      'feb',
+      'mar',
+      'apr',
+      'may',
+      'jun',
+      'jul',
+      'aug',
+      'sep',
+      'oct',
+      'nov',
+      'dec',
+    ];
+    const monthsFull = [
+      'january',
+      'february',
+      'march',
+      'april',
+      'may',
+      'june',
+      'july',
+      'august',
+      'september',
+      'october',
+      'november',
+      'december',
+    ];
 
     // Match ISO dates: YYYY-MM-DD
     const isoDates = raw.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/g) || [];
@@ -206,7 +274,8 @@
     }
 
     // Match English dates: Month Day, Year or Day Month Year
-    const engDateRegex = /(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})/gi;
+    const engDateRegex =
+      /(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})/gi;
     let match;
     while ((match = engDateRegex.exec(raw)) !== null) {
       const mStr = match[1].toLowerCase();
@@ -230,7 +299,8 @@
       }
     }
 
-    const revDateRegex = /(\d{1,2})(?:st|nd|rd|th)?\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\.?,?\s+(\d{4})/gi;
+    const revDateRegex =
+      /(\d{1,2})(?:st|nd|rd|th)?\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\.?,?\s+(\d{4})/gi;
     while ((match = revDateRegex.exec(raw)) !== null) {
       const d = parseInt(match[1], 10);
       const mStr = match[2].toLowerCase();
@@ -260,11 +330,31 @@
       } else if (key.includes('due') || key.includes('expiry')) {
         entityKeywords.push('due date', 'expiry', 'valid till', 'period to', 'to:');
       } else if (key.includes('effective') || key.includes('start') || key.includes('inception')) {
-        entityKeywords.push('effective date', 'inception date', 'period from', 'issuance date', 'from:');
+        entityKeywords.push(
+          'effective date',
+          'inception date',
+          'period from',
+          'issuance date',
+          'from:',
+        );
       } else if (key.includes('total') || key.includes('amount')) {
-        entityKeywords.push('total amount', 'gross premium', 'total premium', 'net payable', 'amount received', 'total');
+        entityKeywords.push(
+          'total amount',
+          'gross premium',
+          'total premium',
+          'net payable',
+          'amount received',
+          'total',
+        );
       } else if (key.includes('client') || key.includes('recipient') || key.includes('customer')) {
-        entityKeywords.push('policyholder', 'insured', 'insured person', 'client', 'customer', 'bill to');
+        entityKeywords.push(
+          'policyholder',
+          'insured',
+          'insured person',
+          'client',
+          'customer',
+          'bill to',
+        );
       } else if (key.includes('vendor') || key.includes('issuer')) {
         entityKeywords.push('issuer', 'insurance company', 'registered office', 'cin:', 'reg no');
       } else if (key.includes('invoice') || key.includes('number')) {
@@ -275,12 +365,12 @@
     // 5. Distinctive substantive tokens (>= 3 chars, not stopwords)
     const tokens = clean
       .split(/[\s,.:;'"\(\)\/\\-]+/)
-      .filter(t => t.length >= 3 && !genericStopwords.has(t));
+      .filter((t) => t.length >= 3 && !genericStopwords.has(t));
 
     // 6. Substantive 2-word bigrams
     const words = clean
       .split(/[\s,.:;'"\(\)\/\\-]+/)
-      .filter(w => w.length >= 3 && !genericStopwords.has(w));
+      .filter((w) => w.length >= 3 && !genericStopwords.has(w));
     const bigrams = [];
     for (let i = 0; i < words.length - 1; i++) {
       bigrams.push(`${words[i]} ${words[i + 1]}`);
@@ -289,13 +379,16 @@
     return {
       raw,
       clean,
-      cleanWithoutCurrency: clean.replace(/[₹$€£,]/g, ' ').replace(/\s+/g, ' ').trim(),
+      cleanWithoutCurrency: clean
+        .replace(/[₹$€£,]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim(),
       normalizedNums: Array.from(normalizedNums),
       dateAliases: Array.from(dateAliases),
       entityKeywords,
       tokens,
       bigrams,
-      info
+      info,
     };
   }
 
@@ -337,13 +430,19 @@
       for (let p = 1; p <= totalPages; p++) {
         const page = await pdfDoc.getPage(p);
         const content = await page.getTextContent();
-        const pageText = content.items.map(it => it.str).join(' ').toLowerCase();
+        const pageText = content.items
+          .map((it) => it.str)
+          .join(' ')
+          .toLowerCase();
         const pageTextNorm = pageText.replace(/,/g, '');
 
         let score = 0;
 
         // 1. Exact phrase match receives huge boost
-        if (feat.clean.length >= 5 && (pageText.includes(feat.clean) || pageTextNorm.includes(feat.cleanWithoutCurrency))) {
+        if (
+          feat.clean.length >= 5 &&
+          (pageText.includes(feat.clean) || pageTextNorm.includes(feat.cleanWithoutCurrency))
+        ) {
           score += 400;
         }
 
@@ -362,7 +461,11 @@
             }
           } else if (num.length === 2 && /\d{2}/.test(num)) {
             // 2-digit number (like age 29)
-            if (pageText.includes(` ${num} `) || pageText.includes(`\n${num}`) || pageText.includes(`${num} `)) {
+            if (
+              pageText.includes(` ${num} `) ||
+              pageText.includes(`\n${num}`) ||
+              pageText.includes(`${num} `)
+            ) {
               score += 80;
             }
           }
@@ -417,7 +520,7 @@
         highlightBoxes = [];
       }
     } catch (err) {
-      console.error("Search error in PDF:", err);
+      console.error('Search error in PDF:', err);
       locateStatus = '';
     } finally {
       isLocating = false;
@@ -435,12 +538,12 @@
       const content = await page.getTextContent();
 
       // Group all non-blank text items into horizontal rows by baseline Y
-      const nonBlankItems = content.items.filter(it => it.str && it.str.trim().length > 0);
+      const nonBlankItems = content.items.filter((it) => it.str && it.str.trim().length > 0);
       const rows = [];
 
       for (const item of nonBlankItems) {
         const itemY = item.transform[5];
-        let foundRow = rows.find(r => Math.abs(r.y - itemY) <= 4.0);
+        let foundRow = rows.find((r) => Math.abs(r.y - itemY) <= 4.0);
         if (foundRow) {
           foundRow.items.push(item);
         } else {
@@ -451,7 +554,10 @@
       // Sort items within each row from left to right (X coordinate)
       for (const r of rows) {
         r.items.sort((a, b) => a.transform[4] - b.transform[4]);
-        r.text = r.items.map(it => it.str).join(' ').toLowerCase();
+        r.text = r.items
+          .map((it) => it.str)
+          .join(' ')
+          .toLowerCase();
         r.textNormalized = r.text.replace(/,/g, '');
       }
 
@@ -465,7 +571,10 @@
         const rowTextNorm = r.textNormalized;
 
         // Exact phrase in row
-        if (feat.clean.length >= 4 && (rowText.includes(feat.clean) || rowTextNorm.includes(feat.cleanWithoutCurrency))) {
+        if (
+          feat.clean.length >= 4 &&
+          (rowText.includes(feat.clean) || rowTextNorm.includes(feat.cleanWithoutCurrency))
+        ) {
           score += 400;
         }
 
@@ -480,7 +589,10 @@
         for (const num of feat.normalizedNums) {
           if (num.length >= 3 && (rowText.includes(num) || rowTextNorm.includes(num))) {
             score += 250;
-          } else if (num.length === 2 && (rowText.includes(` ${num} `) || rowText.includes(`\t${num}`))) {
+          } else if (
+            num.length === 2 &&
+            (rowText.includes(` ${num} `) || rowText.includes(`\t${num}`))
+          ) {
             score += 120;
           }
         }
@@ -516,39 +628,52 @@
 
       if (bestRow && highestRowScore > 0) {
         // From best row, pick the items that actually contributed to the match
-        const matchingRowItems = bestRow.items.filter(item => {
+        const matchingRowItems = bestRow.items.filter((item) => {
           const str = item.str.toLowerCase();
           const strNorm = str.replace(/,/g, '');
 
           // Check date aliases
-          if (feat.dateAliases.some(da => str.includes(da.toLowerCase()))) return true;
+          if (feat.dateAliases.some((da) => str.includes(da.toLowerCase()))) return true;
           // Check numbers
-          if (feat.normalizedNums.some(num => num.length >= 2 && (str.includes(num) || strNorm.includes(num)))) return true;
+          if (
+            feat.normalizedNums.some(
+              (num) => num.length >= 2 && (str.includes(num) || strNorm.includes(num)),
+            )
+          )
+            return true;
           // Check clean match
-          if (feat.clean.length >= 4 && (str.includes(feat.clean) || feat.clean.includes(str))) return true;
+          if (feat.clean.length >= 4 && (str.includes(feat.clean) || feat.clean.includes(str)))
+            return true;
           // Check entity keywords
-          if (feat.entityKeywords.some(ek => str.includes(ek))) return true;
+          if (feat.entityKeywords.some((ek) => str.includes(ek))) return true;
           // Check distinctive tokens
-          return feat.tokens.some(t => str.includes(t) || strNorm.includes(t));
+          return feat.tokens.some((t) => str.includes(t) || strNorm.includes(t));
         });
 
         matchedItems = matchingRowItems.length > 0 ? matchingRowItems : bestRow.items.slice(0, 3);
       } else {
         // Fallback to individual items if row grouping didn't catch it
-        matchedItems = nonBlankItems.filter(item => {
-          const str = item.str.toLowerCase();
-          const strNorm = str.replace(/,/g, '');
-          if (feat.dateAliases.some(da => str.includes(da.toLowerCase()))) return true;
-          if (feat.normalizedNums.some(num => num.length >= 3 && (str.includes(num) || strNorm.includes(num)))) return true;
-          return feat.clean.length >= 5 && str.includes(feat.clean);
-        }).slice(0, 2);
+        matchedItems = nonBlankItems
+          .filter((item) => {
+            const str = item.str.toLowerCase();
+            const strNorm = str.replace(/,/g, '');
+            if (feat.dateAliases.some((da) => str.includes(da.toLowerCase()))) return true;
+            if (
+              feat.normalizedNums.some(
+                (num) => num.length >= 3 && (str.includes(num) || strNorm.includes(num)),
+              )
+            )
+              return true;
+            return feat.clean.length >= 5 && str.includes(feat.clean);
+          })
+          .slice(0, 2);
       }
 
       // Convert matched items to exact canvas bounding boxes
       const boxes = [];
       for (const item of matchedItems.slice(0, 3)) {
         const [scaleX, skewY, skewX, scaleY, tx, ty] = item.transform;
-        const itemWidth = item.width || (item.str.length * 8);
+        const itemWidth = item.width || item.str.length * 8;
         const itemHeight = Math.max(12, item.height || Math.abs(scaleY) || 14);
 
         const p1 = viewport.convertToViewportPoint(tx, ty + itemHeight);
@@ -559,12 +684,12 @@
         const width = Math.max(28, Math.abs(p2[0] - p1[0]));
         const height = Math.max(16, Math.abs(p2[1] - p1[1]));
 
-        boxes.push({ 
-          left, 
-          top, 
-          width, 
-          height, 
-          label: info.displayLabel || item.str.slice(0, 20) 
+        boxes.push({
+          left,
+          top,
+          width,
+          height,
+          label: info.displayLabel || item.str.slice(0, 20),
         });
       }
 
@@ -581,7 +706,7 @@
         });
       }
     } catch (err) {
-      console.warn("Could not compute highlight boxes:", err);
+      console.warn('Could not compute highlight boxes:', err);
       highlightBoxes = [];
     }
   }
@@ -627,7 +752,10 @@
       let score = 0;
 
       // Exact phrase match
-      if (feat.clean.length >= 5 && (lLower.includes(feat.clean) || lNorm.includes(feat.cleanWithoutCurrency))) {
+      if (
+        feat.clean.length >= 5 &&
+        (lLower.includes(feat.clean) || lNorm.includes(feat.cleanWithoutCurrency))
+      ) {
         score += 450;
       }
 
@@ -642,7 +770,12 @@
       for (const num of feat.normalizedNums) {
         if (num.length >= 3 && (lLower.includes(num) || lNorm.includes(num))) {
           score += 260;
-        } else if (num.length === 2 && (lLower.includes(` ${num} `) || lLower.includes(`-${num}-`) || lLower.includes(`/${num}/`))) {
+        } else if (
+          num.length === 2 &&
+          (lLower.includes(` ${num} `) ||
+            lLower.includes(`-${num}-`) ||
+            lLower.includes(`/${num}/`))
+        ) {
           score += 80;
         }
       }
@@ -680,7 +813,7 @@
         lineIndex: bestIdx,
         pageNumber: pageNum,
         score: highestScore,
-        rawLine: lines[bestIdx]
+        rawLine: lines[bestIdx],
       };
     }
     return null;
@@ -689,10 +822,11 @@
   function scrollToHighlightedText() {
     setTimeout(() => {
       if (!textContainerRef) return;
-      const target = textContainerRef.querySelector('#focal-target-match') ||
-                     textContainerRef.querySelector('.focal-target') ||
-                     textContainerRef.querySelector('.focal-line-wrapper') ||
-                     textContainerRef.querySelector('.active-highlight');
+      const target =
+        textContainerRef.querySelector('#focal-target-match') ||
+        textContainerRef.querySelector('.focal-target') ||
+        textContainerRef.querySelector('.focal-line-wrapper') ||
+        textContainerRef.querySelector('.active-highlight');
       if (target) {
         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
@@ -718,14 +852,18 @@
     // Helper regex for secondary occurrences
     const secondaryTerms = [
       ...feat.dateAliases,
-      ...feat.normalizedNums.filter(n => n.length >= 3)
+      ...feat.normalizedNums.filter((n) => n.length >= 3),
     ];
     if (feat.clean.length >= 6) {
       secondaryTerms.unshift(feat.clean);
     }
-    const secondaryRegex = secondaryTerms.length > 0
-      ? new RegExp(`(${secondaryTerms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi')
-      : null;
+    const secondaryRegex =
+      secondaryTerms.length > 0
+        ? new RegExp(
+            `(${secondaryTerms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`,
+            'gi',
+          )
+        : null;
 
     const formattedLines = lines.map((line, idx) => {
       // Check if this is a Page Header line
@@ -743,9 +881,14 @@
           const escClean = feat.clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           const cleanRe = new RegExp(`(${escClean})`, 'i');
           if (cleanRe.test(escapedLine)) {
-            return `<div class="focal-line-wrapper">` +
-              escapedLine.replace(cleanRe, `<mark id="focal-target-match" class="active-highlight focal-target">$1<span class="focal-target-badge">📍 ${badgeLabel}</span></mark>`) +
-              `</div>`;
+            return (
+              `<div class="focal-line-wrapper">` +
+              escapedLine.replace(
+                cleanRe,
+                `<mark id="focal-target-match" class="active-highlight focal-target">$1<span class="focal-target-badge">📍 ${badgeLabel}</span></mark>`,
+              ) +
+              `</div>`
+            );
           }
         }
 
@@ -754,9 +897,14 @@
           const escDa = da.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           const daRe = new RegExp(`(${escDa})`, 'i');
           if (daRe.test(escapedLine)) {
-            return `<div class="focal-line-wrapper">` +
-              escapedLine.replace(daRe, `<mark id="focal-target-match" class="active-highlight focal-target">$1<span class="focal-target-badge">📍 ${badgeLabel}</span></mark>`) +
-              `</div>`;
+            return (
+              `<div class="focal-line-wrapper">` +
+              escapedLine.replace(
+                daRe,
+                `<mark id="focal-target-match" class="active-highlight focal-target">$1<span class="focal-target-badge">📍 ${badgeLabel}</span></mark>`,
+              ) +
+              `</div>`
+            );
           }
         }
 
@@ -766,9 +914,14 @@
             const escNum = num.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const numRe = new RegExp(`(${escNum})`, 'i');
             if (numRe.test(escapedLine)) {
-              return `<div class="focal-line-wrapper">` +
-                escapedLine.replace(numRe, `<mark id="focal-target-match" class="active-highlight focal-target">$1<span class="focal-target-badge">📍 ${badgeLabel}</span></mark>`) +
-                `</div>`;
+              return (
+                `<div class="focal-line-wrapper">` +
+                escapedLine.replace(
+                  numRe,
+                  `<mark id="focal-target-match" class="active-highlight focal-target">$1<span class="focal-target-badge">📍 ${badgeLabel}</span></mark>`,
+                ) +
+                `</div>`
+              );
             }
           }
         }
@@ -778,9 +931,14 @@
           const escBg = bg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           const bgRe = new RegExp(`(${escBg})`, 'i');
           if (bgRe.test(escapedLine)) {
-            return `<div class="focal-line-wrapper">` +
-              escapedLine.replace(bgRe, `<mark id="focal-target-match" class="active-highlight focal-target">$1<span class="focal-target-badge">📍 ${badgeLabel}</span></mark>`) +
-              `</div>`;
+            return (
+              `<div class="focal-line-wrapper">` +
+              escapedLine.replace(
+                bgRe,
+                `<mark id="focal-target-match" class="active-highlight focal-target">$1<span class="focal-target-badge">📍 ${badgeLabel}</span></mark>`,
+              ) +
+              `</div>`
+            );
           }
         }
 
@@ -789,9 +947,14 @@
           const escTok = tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           const tokRe = new RegExp(`(${escTok})`, 'i');
           if (tokRe.test(escapedLine)) {
-            return `<div class="focal-line-wrapper">` +
-              escapedLine.replace(tokRe, `<mark id="focal-target-match" class="active-highlight focal-target">$1<span class="focal-target-badge">📍 ${badgeLabel}</span></mark>`) +
-              `</div>`;
+            return (
+              `<div class="focal-line-wrapper">` +
+              escapedLine.replace(
+                tokRe,
+                `<mark id="focal-target-match" class="active-highlight focal-target">$1<span class="focal-target-badge">📍 ${badgeLabel}</span></mark>`,
+              ) +
+              `</div>`
+            );
           }
         }
 
@@ -826,20 +989,23 @@
     <div class="toolbar-left">
       <!-- Mode Toggle -->
       <div class="mode-toggle">
-        <button 
+        <button
           type="button"
-          class="mode-btn {viewMode === 'canvas' ? 'active' : ''}" 
-          on:click={() => { viewMode = 'canvas'; setTimeout(() => renderPage(currentPage), 50); }}
+          class="mode-btn {viewMode === 'canvas' ? 'active' : ''}"
+          on:click={() => {
+            viewMode = 'canvas';
+            setTimeout(() => renderPage(currentPage), 50);
+          }}
           disabled={fileType !== 'pdf'}
           title="Render actual visual PDF canvas with page navigation"
         >
           Visual Canvas
         </button>
-        <button 
+        <button
           type="button"
-          class="mode-btn {viewMode === 'text' ? 'active' : ''}" 
-          on:click={() => { 
-            viewMode = 'text'; 
+          class="mode-btn {viewMode === 'text' ? 'active' : ''}"
+          on:click={() => {
+            viewMode = 'text';
             if (highlightQuery) {
               handleQueryHighlight(highlightQuery);
               setTimeout(() => scrollToHighlightedText(), 80);
@@ -858,7 +1024,16 @@
           {#if locateStatus}
             <span class="locate-badge-pill">{locateStatus}</span>
           {/if}
-          <button type="button" class="clear-chip-btn" on:click={() => { highlightQuery = ''; highlightBoxes = []; locateStatus = ''; currentQueryLabel = ''; }}>✕</button>
+          <button
+            type="button"
+            class="clear-chip-btn"
+            on:click={() => {
+              highlightQuery = '';
+              highlightBoxes = [];
+              locateStatus = '';
+              currentQueryLabel = '';
+            }}>✕</button
+          >
         </div>
       {/if}
     </div>
@@ -867,15 +1042,31 @@
     {#if viewMode === 'canvas' && fileType === 'pdf'}
       <div class="toolbar-right">
         <div class="page-controls">
-          <button type="button" class="tool-btn" on:click={() => changePage(-1)} disabled={currentPage <= 1} title="Previous page">◀</button>
+          <button
+            type="button"
+            class="tool-btn"
+            on:click={() => changePage(-1)}
+            disabled={currentPage <= 1}
+            title="Previous page">◀</button
+          >
           <span class="page-indicator">Page {currentPage} of {totalPages}</span>
-          <button type="button" class="tool-btn" on:click={() => changePage(1)} disabled={currentPage >= totalPages} title="Next page">▶</button>
+          <button
+            type="button"
+            class="tool-btn"
+            on:click={() => changePage(1)}
+            disabled={currentPage >= totalPages}
+            title="Next page">▶</button
+          >
         </div>
 
         <div class="zoom-controls">
-          <button type="button" class="tool-btn" on:click={() => changeZoom(-0.25)} title="Zoom out">-</button>
+          <button type="button" class="tool-btn" on:click={() => changeZoom(-0.25)} title="Zoom out"
+            >-</button
+          >
           <span class="zoom-indicator">{Math.round(zoomScale * 100)}%</span>
-          <button type="button" class="tool-btn" on:click={() => changeZoom(0.25)} title="Zoom in">+</button>
+          <button type="button" class="tool-btn" on:click={() => changeZoom(0.25)} title="Zoom in"
+            >+</button
+          >
         </div>
       </div>
     {/if}
@@ -898,8 +1089,8 @@
 
           <!-- Bounding Box Highlights rendered directly on top of the canvas -->
           {#each highlightBoxes as box}
-            <div 
-              class="canvas-bounding-box" 
+            <div
+              class="canvas-bounding-box"
               style="left: {box.left}px; top: {box.top}px; width: {box.width}px; height: {box.height}px;"
             >
               <span class="box-locator-badge">📍 {box.label || 'Match'}</span>
@@ -946,7 +1137,8 @@
     z-index: 10;
   }
 
-  .toolbar-left, .toolbar-right {
+  .toolbar-left,
+  .toolbar-right {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1003,8 +1195,15 @@
   }
 
   @keyframes pulse {
-    0%, 100% { opacity: 0.5; transform: scale(0.9); }
-    50% { opacity: 1; transform: scale(1.15); }
+    0%,
+    100% {
+      opacity: 0.5;
+      transform: scale(0.9);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.15);
+    }
   }
 
   .locate-badge-pill {
@@ -1025,7 +1224,8 @@
     margin-left: 2px;
   }
 
-  .page-controls, .zoom-controls {
+  .page-controls,
+  .zoom-controls {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1057,7 +1257,8 @@
     cursor: not-allowed;
   }
 
-  .page-indicator, .zoom-indicator {
+  .page-indicator,
+  .zoom-indicator {
     font-size: 0.76rem;
     color: var(--text-muted);
     font-family: var(--font-mono);
@@ -1259,7 +1460,10 @@
 
   .loading-overlay {
     position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     background: rgba(8, 13, 26, 0.85);
     display: flex;
     flex-direction: column;
@@ -1279,6 +1483,8 @@
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>

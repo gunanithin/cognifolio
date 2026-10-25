@@ -110,7 +110,7 @@ export async function downloadAuditExport(format = 'csv') {
   const url = `${API_BASE}/compliance/export?format=${format}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to export audit logs');
-  
+
   const blob = await res.blob();
   const downloadUrl = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -122,3 +122,18 @@ export async function downloadAuditExport(format = 'csv') {
   window.URL.revokeObjectURL(downloadUrl);
 }
 
+export async function chatWithDocument(docId, message, conversationHistory = []) {
+  const res = await fetch(`${API_BASE}/documents/${docId}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message,
+      conversation_history: conversationHistory,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to process document chat query');
+  }
+  return await res.json();
+}

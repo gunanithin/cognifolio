@@ -1,19 +1,20 @@
 <script>
   import { onMount } from 'svelte';
-  import { 
-    fetchHealth, 
-    listDocuments, 
-    uploadDocument, 
-    deleteDocument, 
-    getDocument, 
-    semanticSearch, 
+  import {
+    fetchHealth,
+    listDocuments,
+    uploadDocument,
+    deleteDocument,
+    getDocument,
+    semanticSearch,
     getDashboardStats,
     getComplianceStats,
     getAuditLogs,
     downloadAuditExport,
     triggerDocumentRedaction,
     getDocumentFileUrl,
-    getRedactedFileUrl
+    getRedactedFileUrl,
+    chatWithDocument,
   } from './lib/api.js';
   import PdfViewer from './lib/components/PdfViewer.svelte';
 
@@ -38,6 +39,139 @@
   let isExportingAudit = false;
   let isRedactedView = false;
 
+  // Conversational Document AI (Chat with Document)
+  let viewerRightTab = 'intel'; // 'intel' | 'chat'
+  let chatMessages = [];
+  let chatInput = '';
+  let isChatLoading = false;
+  let chatContainerRef = null;
+  let currentChatDocId = null;
+
+  function initDocChat() {
+    if (selectedDoc && currentChatDocId !== selectedDoc.id) {
+      currentChatDocId = selectedDoc.id;
+      chatMessages = [];
+    }
+  }
+
+  $: if (selectedDoc && selectedDoc.id !== currentChatDocId) {
+    currentChatDocId = selectedDoc.id;
+    chatMessages = [];
+  }
+
+  async function handleSendChat(customMessage = null) {
+    const textToSend = (customMessage || chatInput).trim();
+    if (!textToSend || !selectedDoc || isChatLoading) return;
+
+    chatInput = '';
+    const userMsg = {
+      id: 'usr_' + Date.now(),
+      role: 'user',
+      content: textToSend,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    chatMessages = [...chatMessages, userMsg];
+    isChatLoading = true;
+
+    setTimeout(() => {
+      if (chatContainerRef) chatContainerRef.scrollTop = chatContainerRef.scrollHeight;
+    }, 50);
+
+    try {
+      const historyPayload = chatMessages
+        .slice(-6)
+        .map((m) => ({ role: m.role, content: m.content }));
+      const response = await chatWithDocument(selectedDoc.id, textToSend, historyPayload);
+
+      const aiMsg = {
+        id: 'ai_' + Date.now(),
+        role: 'assistant',
+        content: response.reply,
+        citations: response.citations || [],
+        followups: response.suggested_followups || [],
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+
+      chatMessages = [...chatMessages, aiMsg];
+    } catch (err) {
+      chatMessages = [
+        ...chatMessages,
+        {
+          id: 'err_' + Date.now(),
+          role: 'assistant',
+          content: `⚠️ Failed to get answer: ${err.message}`,
+          citations: [],
+          followups: [],
+        },
+      ];
+    } finally {
+      isChatLoading = false;
+      setTimeout(() => {
+        if (chatContainerRef) chatContainerRef.scrollTop = chatContainerRef.scrollHeight;
+      }, 50);
+    }
+  }
+
+  function handleCitationClick(cit) {
+    if (!cit || !cit.text) return;
+    highlightInDoc({
+      type: cit.type || 'clause',
+      text: cit.text,
+      id: cit.text,
+      label: cit.label || 'Citation',
+    });
+  }
+
+  function clearChat() {
+    chatMessages = [];
+  }
+
+  function formatChatReply(content) {
+    if (!content) return '';
+    let formatted = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    formatted = formatted.replace(/^\s*[\*\-]\s+(.*)$/gm, '<li>$1</li>');
+    formatted = formatted.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+    formatted = formatted.replace(/^\s*>\s*(.*)$/gm, '<blockquote>$1</blockquote>');
+    formatted = formatted.replace(/\n\n/g, '<p></p>').replace(/\n/g, '<br/>');
+    return formatted;
+  }
+
+  function getDocStarters(doc) {
+    if (!doc || !doc.insights) {
+      return [
+        'What is the summary of this document?',
+        'What are the main key points?',
+        'Who are the parties involved?',
+      ];
+    }
+    const type = (doc.insights.document_type || '').toLowerCase();
+    if (type.includes('invoice') || type.includes('tax')) {
+      return [
+        'What is the total payable amount and due date?',
+        'What are the individual line items and services billed?',
+        'Are there any late payment penalties or interest terms?',
+      ];
+    } else if (type.includes('contract') || type.includes('agreement')) {
+      return [
+        'What are the payment milestones and contract value?',
+        'What are the early termination penalties and liability caps?',
+        'Is there an automatic renewal clause in this contract?',
+      ];
+    } else if (type.includes('policy') || type.includes('insurance')) {
+      return [
+        'What is the Free Look cancellation period?',
+        'What are the key exclusions and waiting periods?',
+        'How does the claim settlement or reimbursement process work?',
+      ];
+    }
+    return [
+      'Summarize the main obligations and takeaways',
+      'What are the key financial amounts or deadlines?',
+      'Are there any risk, liability, or penalty clauses?',
+    ];
+  }
+
   // Interactive PDF Highlight state
   let activeHighlightTerm = '';
   let activeHighlightKey = '';
@@ -49,7 +183,9 @@
       activeHighlightKey = cleanTerm;
       if (activeHighlightTerm === cleanTerm) {
         activeHighlightTerm = '';
-        setTimeout(() => { activeHighlightTerm = cleanTerm; }, 20);
+        setTimeout(() => {
+          activeHighlightTerm = cleanTerm;
+        }, 20);
       } else {
         activeHighlightTerm = cleanTerm;
       }
@@ -68,7 +204,7 @@
       type: 'takeaway',
       text: pt,
       id: pt,
-      label: 'Takeaway'
+      label: 'Takeaway',
     });
   }
 
@@ -82,7 +218,7 @@
       val: valStr,
       text: `${formattedKey}: ${valStr}`,
       id: key,
-      label: formattedKey
+      label: formattedKey,
     });
   }
 
@@ -95,7 +231,7 @@
       text: query,
       amount: item.amount,
       id: item.description,
-      label: 'Line Item'
+      label: 'Line Item',
     });
   }
 
@@ -105,7 +241,7 @@
       type: 'clause',
       text: clause,
       id: clause,
-      label: 'Risk Clause'
+      label: 'Risk Clause',
     });
   }
 
@@ -123,7 +259,7 @@
   // Sample Documents for 1-Click Testing
   const sampleDocuments = [
     {
-      name: "TCS_Cloud_Infrastructure_Invoice_Oct2026.pdf",
+      name: 'TCS_Cloud_Infrastructure_Invoice_Oct2026.pdf',
       content: `TAX INVOICE
 Tata Consultancy Services Ltd.
 B-Wing, TCS Olympus, Hiranandani Estate, Thane 400607
@@ -148,10 +284,10 @@ SGST (9%): ₹76,050.00
 Total Payable Amount: ₹9,97,100.00
 
 PAYMENT TERMS:
-Payment must be credited within 30 days of receipt. Late payments shall incur 1.5% interest per month.`
+Payment must be credited within 30 days of receipt. Late payments shall incur 1.5% interest per month.`,
     },
     {
-      name: "Master_Software_License_and_Service_Agreement.pdf",
+      name: 'Master_Software_License_and_Service_Agreement.pdf',
       content: `MASTER SOFTWARE SERVICES AGREEMENT
 Effective Date: 01-Jan-2026
 Between: Novatech AI Solutions Inc. ("Provider")
@@ -168,8 +304,8 @@ SECTION 9: RISK CLAUSES & TERMINATION
 Either party may terminate this agreement with 60 days written notice.
 AUTOMATIC RENEWAL: This agreement automatically renews for successive 1-year terms unless written notice is given 30 days prior to expiration.
 LIABILITY CAP: Provider liability is strictly limited to fees paid in the preceding 6 months.
-PENALTY: Any breach of proprietary source code constitutes liquidated damages of $50,000 USD.`
-    }
+PENALTY: Any breach of proprietary source code constitutes liquidated damages of $50,000 USD.`,
+    },
   ];
 
   onMount(async () => {
@@ -214,7 +350,9 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
       isExportingAudit = true;
       await downloadAuditExport(format);
       successMsg = `Audit trail successfully exported as ${format.toUpperCase()}`;
-      setTimeout(() => { successMsg = ''; }, 4000);
+      setTimeout(() => {
+        successMsg = '';
+      }, 4000);
       await refreshCompliance();
     } catch (err) {
       errorMsg = err.message;
@@ -232,7 +370,7 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-        second: '2-digit'
+        second: '2-digit',
       });
     } catch {
       return isoStr;
@@ -246,8 +384,12 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     errorMsg = '';
 
     try {
-      setTimeout(() => { uploadStep = 2; }, 600);
-      setTimeout(() => { uploadStep = 3; }, 1400);
+      setTimeout(() => {
+        uploadStep = 2;
+      }, 600);
+      setTimeout(() => {
+        uploadStep = 3;
+      }, 1400);
 
       const res = await uploadDocument(fileToUpload, retentionDays);
       uploadStep = 4;
@@ -299,13 +441,20 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
   }
 
   async function handleDelete(docId) {
-    if (!confirm('Are you sure you want to permanently delete this document and its vector embeddings?')) return;
+    if (
+      !confirm(
+        'Are you sure you want to permanently delete this document and its vector embeddings?',
+      )
+    )
+      return;
     try {
       await deleteDocument(docId);
       selectedDoc = null;
       await refreshAll();
       successMsg = 'Document and vector index purged.';
-      setTimeout(() => { successMsg = ''; }, 3000);
+      setTimeout(() => {
+        successMsg = '';
+      }, 3000);
     } catch (err) {
       errorMsg = err.message;
     }
@@ -318,12 +467,21 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     <div class="nav-left">
       <div class="brand">
         <div class="logo-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="16" y1="13" x2="8" y2="13"/>
-            <line x1="16" y1="17" x2="8" y2="17"/>
-            <polyline points="10 9 9 9 8 9"/>
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+            <polyline points="10 9 9 9 8 9" />
           </svg>
         </div>
         <div class="brand-text">
@@ -336,13 +494,21 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     <!-- Quick Search in Header -->
     <div class="nav-center">
       <div class="search-bar-wrap">
-        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        <svg
+          class="search-icon"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
-        <input 
-          type="text" 
-          placeholder="Prompt brief: 'that TCS invoice from last month' or 'contracts with liability'..." 
+        <input
+          type="text"
+          placeholder="Prompt brief: 'that TCS invoice from last month' or 'contracts with liability'..."
           bind:value={searchQuery}
           on:keydown={(e) => e.key === 'Enter' && handleSearch()}
         />
@@ -355,7 +521,9 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     <div class="nav-right">
       <div class="status-chip">
         <span class="pulse-indicator"></span>
-        <span class="status-label">{health.status === 'online' ? 'Gemini 2.5 Flash' : 'System Ready'}</span>
+        <span class="status-label"
+          >{health.status === 'online' ? 'Gemini 2.5 Flash' : 'System Ready'}</span
+        >
       </div>
     </div>
   </header>
@@ -363,28 +531,94 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
   <!-- Navigation Tabs -->
   <nav class="sub-nav">
     <div class="tabs-container">
-      <button class="nav-tab {activeTab === 'dashboard' ? 'active' : ''}" on:click={() => activeTab = 'dashboard'}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      <button
+        class="nav-tab {activeTab === 'dashboard' ? 'active' : ''}"
+        on:click={() => (activeTab = 'dashboard')}
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          ><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect
+            x="14"
+            y="14"
+            width="7"
+            height="7"
+          /><rect x="3" y="14" width="7" height="7" /></svg
+        >
         Dashboard
       </button>
 
-      <button class="nav-tab {activeTab === 'upload' ? 'active' : ''}" on:click={() => activeTab = 'upload'}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <button
+        class="nav-tab {activeTab === 'upload' ? 'active' : ''}"
+        on:click={() => (activeTab = 'upload')}
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          ><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline
+            points="17 8 12 3 7 8"
+          /><line x1="12" y1="3" x2="12" y2="15" /></svg
+        >
         Upload & Extract
       </button>
 
-      <button class="nav-tab {activeTab === 'search' ? 'active' : ''}" on:click={() => activeTab = 'search'}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <button
+        class="nav-tab {activeTab === 'search' ? 'active' : ''}"
+        on:click={() => (activeTab = 'search')}
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          ><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg
+        >
         Semantic Search {searchResults.length > 0 ? `(${searchResults.length})` : ''}
       </button>
 
-      <button class="nav-tab {activeTab === 'viewer' ? 'active' : ''}" on:click={() => activeTab = 'viewer'}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+      <button
+        class="nav-tab {activeTab === 'viewer' ? 'active' : ''}"
+        on:click={() => (activeTab = 'viewer')}
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          ><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path
+            d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"
+          /></svg
+        >
         Deep Dive Viewer {selectedDoc ? `· ${selectedDoc.original_filename.slice(0, 15)}...` : ''}
       </button>
 
-      <button class="nav-tab {activeTab === 'privacy' ? 'active' : ''}" on:click={() => { activeTab = 'privacy'; refreshCompliance(); }}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <button
+        class="nav-tab {activeTab === 'privacy' ? 'active' : ''}"
+        on:click={() => {
+          activeTab = 'privacy';
+          refreshCompliance();
+        }}
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg
+        >
         Compliance & Audit Trails {complianceStats ? `· ${complianceStats.total_audit_events}` : ''}
       </button>
     </div>
@@ -394,30 +628,39 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
   {#if errorMsg}
     <div class="alert alert-error">
       <span>⚠️ {errorMsg}</span>
-      <button class="close-btn" on:click={() => errorMsg = ''}>✕</button>
+      <button class="close-btn" on:click={() => (errorMsg = '')}>✕</button>
     </div>
   {/if}
 
   {#if successMsg}
     <div class="alert alert-success">
       <span>✅ {successMsg}</span>
-      <button class="close-btn" on:click={() => successMsg = ''}>✕</button>
+      <button class="close-btn" on:click={() => (successMsg = '')}>✕</button>
     </div>
   {/if}
 
   <!-- Main Content Area -->
   <main class="content-container">
-
     <!-- TAB 1: EXECUTIVE DASHBOARD -->
     {#if activeTab === 'dashboard'}
       <div class="dashboard-view">
         <div class="view-header">
           <div>
             <h2>Enterprise Document Intelligence</h2>
-            <p class="subtitle">Overview of indexed contracts, invoices, and automated data extractions</p>
+            <p class="subtitle">
+              Overview of indexed contracts, invoices, and automated data extractions
+            </p>
           </div>
-          <button class="btn-primary" on:click={() => activeTab = 'upload'}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <button class="btn-primary" on:click={() => (activeTab = 'upload')}>
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              ><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg
+            >
             Add New Document
           </button>
         </div>
@@ -427,7 +670,9 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
           <div class="glass-card stat-card">
             <div class="stat-icon cyan">📄</div>
             <div class="stat-info">
-              <span class="stat-value">{stats ? stats.overview.total_documents : documents.length}</span>
+              <span class="stat-value"
+                >{stats ? stats.overview.total_documents : documents.length}</span
+              >
               <span class="stat-label">Total Documents</span>
             </div>
           </div>
@@ -435,7 +680,9 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
           <div class="glass-card stat-card">
             <div class="stat-icon emerald">⚡</div>
             <div class="stat-info">
-              <span class="stat-value">{stats ? stats.overview.processed_successfully : documents.length}</span>
+              <span class="stat-value"
+                >{stats ? stats.overview.processed_successfully : documents.length}</span
+              >
               <span class="stat-label">Processed Successfully</span>
             </div>
           </div>
@@ -468,7 +715,14 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
                   <div class="dist-row">
                     <span class="dist-label">{label}</span>
                     <div class="bar-track">
-                      <div class="bar-fill" style="width: {Math.min(100, (stats.charts.by_type.values[i] / (stats.overview.total_documents || 1)) * 100)}%"></div>
+                      <div
+                        class="bar-fill"
+                        style="width: {Math.min(
+                          100,
+                          (stats.charts.by_type.values[i] / (stats.overview.total_documents || 1)) *
+                            100,
+                        )}%"
+                      ></div>
                     </div>
                     <span class="dist-val">{stats.charts.by_type.values[i]}</span>
                   </div>
@@ -487,11 +741,15 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
                 {#each stats.charts.by_vendor.labels as vendor, i}
                   <div class="vendor-item">
                     <div class="vendor-name">🏢 {vendor}</div>
-                    <div class="vendor-amt">₹{stats.charts.by_vendor.values[i].toLocaleString()}</div>
+                    <div class="vendor-amt">
+                      ₹{stats.charts.by_vendor.values[i].toLocaleString()}
+                    </div>
                   </div>
                 {/each}
               {:else}
-                <div class="empty-hint">Financial insights will populate upon processing invoices</div>
+                <div class="empty-hint">
+                  Financial insights will populate upon processing invoices
+                </div>
               {/if}
             </div>
           </div>
@@ -537,12 +795,20 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
                       <td class="name-cell">
                         <span class="file-icon">📄</span>
                         <div class="file-details">
-                          <button class="filename-btn" on:click={() => viewDocumentDetail(doc.id)}>{doc.original_filename}</button>
-                          <span class="file-summary">{doc.insights ? doc.insights.summary.slice(0, 75) + '...' : 'Processing...'}</span>
+                          <button class="filename-btn" on:click={() => viewDocumentDetail(doc.id)}
+                            >{doc.original_filename}</button
+                          >
+                          <span class="file-summary"
+                            >{doc.insights
+                              ? doc.insights.summary.slice(0, 75) + '...'
+                              : 'Processing...'}</span
+                          >
                         </div>
                       </td>
                       <td>
-                        <span class="badge badge-purple">{doc.insights ? doc.insights.document_type : doc.file_type}</span>
+                        <span class="badge badge-purple"
+                          >{doc.insights ? doc.insights.document_type : doc.file_type}</span
+                        >
                       </td>
                       <td>{doc.page_count} pg ({Math.round(doc.file_size_bytes / 1024)} KB)</td>
                       <td>
@@ -550,10 +816,18 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
                       </td>
                       <td class="date-cell">{new Date(doc.uploaded_at).toLocaleDateString()}</td>
                       <td class="actions-cell">
-                        <button class="btn-action view" title="Deep Dive" on:click={() => viewDocumentDetail(doc.id)}>
+                        <button
+                          class="btn-action view"
+                          title="Deep Dive"
+                          on:click={() => viewDocumentDetail(doc.id)}
+                        >
                           Deep Dive →
                         </button>
-                        <button class="btn-action delete" title="Delete" on:click={() => handleDelete(doc.id)}>
+                        <button
+                          class="btn-action delete"
+                          title="Delete"
+                          on:click={() => handleDelete(doc.id)}
+                        >
                           ✕
                         </button>
                       </td>
@@ -573,7 +847,9 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
         <div class="view-header">
           <div>
             <h2>Upload & Document Processing</h2>
-            <p class="subtitle">Extract intelligence from invoices, contracts, statements, or scanned reports</p>
+            <p class="subtitle">
+              Extract intelligence from invoices, contracts, statements, or scanned reports
+            </p>
           </div>
         </div>
 
@@ -581,16 +857,26 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
           <!-- Drop Zone -->
           <div class="glass-card dropzone-card">
             <div class="dropzone">
-              <input 
-                type="file" 
-                id="file-input" 
-                accept=".pdf,.png,.jpg,.jpeg,.webp,.txt" 
+              <input
+                type="file"
+                id="file-input"
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.txt"
                 on:change={(e) => handleFileUpload(e.target.files[0])}
                 disabled={isUploading}
               />
               <label for="file-input" class="dropzone-label">
                 <div class="upload-icon-circle">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <svg
+                    width="32"
+                    height="32"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    ><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline
+                      points="17 8 12 3 7 8"
+                    /><line x1="12" y1="3" x2="12" y2="15" /></svg
+                  >
                 </div>
                 <h3>Drag & Drop documents here</h3>
                 <p>Supports PDF, PNG, JPG, Scanned Documents up to 25MB</p>
@@ -611,10 +897,16 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
           <!-- Real-Time Pipeline Progress / Architecture View -->
           <div class="glass-card pipeline-card">
             <h3>Enterprise Processing Pipeline</h3>
-            <p class="card-subtitle">Every document passes through our 4-tier security & extraction flow:</p>
+            <p class="card-subtitle">
+              Every document passes through our 4-tier security & extraction flow:
+            </p>
 
             <div class="pipeline-steps">
-              <div class="step-item {uploadStep >= 1 ? 'active' : ''} {uploadStep > 1 ? 'completed' : ''}">
+              <div
+                class="step-item {uploadStep >= 1 ? 'active' : ''} {uploadStep > 1
+                  ? 'completed'
+                  : ''}"
+              >
                 <div class="step-num">1</div>
                 <div class="step-info">
                   <h4>Document Ingestion & OCR</h4>
@@ -623,7 +915,11 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
                 {#if uploadStep === 1}<span class="spinner"></span>{/if}
               </div>
 
-              <div class="step-item {uploadStep >= 2 ? 'active' : ''} {uploadStep > 2 ? 'completed' : ''}">
+              <div
+                class="step-item {uploadStep >= 2 ? 'active' : ''} {uploadStep > 2
+                  ? 'completed'
+                  : ''}"
+              >
                 <div class="step-num">2</div>
                 <div class="step-info">
                   <h4>🔒 PII Redaction Engine</h4>
@@ -632,7 +928,11 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
                 {#if uploadStep === 2}<span class="spinner"></span>{/if}
               </div>
 
-              <div class="step-item {uploadStep >= 3 ? 'active' : ''} {uploadStep > 3 ? 'completed' : ''}">
+              <div
+                class="step-item {uploadStep >= 3 ? 'active' : ''} {uploadStep > 3
+                  ? 'completed'
+                  : ''}"
+              >
                 <div class="step-num">3</div>
                 <div class="step-info">
                   <h4>Gemini Flash Multimodal Extraction</h4>
@@ -641,7 +941,11 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
                 {#if uploadStep === 3}<span class="spinner"></span>{/if}
               </div>
 
-              <div class="step-item {uploadStep >= 4 ? 'active' : ''} {uploadStep > 4 ? 'completed' : ''}">
+              <div
+                class="step-item {uploadStep >= 4 ? 'active' : ''} {uploadStep > 4
+                  ? 'completed'
+                  : ''}"
+              >
                 <div class="step-num">4</div>
                 <div class="step-info">
                   <h4>Qdrant 768-D Vector Indexing</h4>
@@ -674,18 +978,28 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
         <div class="view-header">
           <div>
             <h2>Lazy Natural Language Search</h2>
-            <p class="subtitle">Query documents using vague thoughts or natural language — Qdrant vector engine matches meaning</p>
+            <p class="subtitle">
+              Query documents using vague thoughts or natural language — Qdrant vector engine
+              matches meaning
+            </p>
           </div>
         </div>
 
         <div class="search-input-section glass-card">
           <div class="large-search-box">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="e.g. 'that contract with automatic renewal penalty' or 'TCS cloud invoice'"
               bind:value={searchQuery}
               on:keydown={(e) => e.key === 'Enter' && handleSearch()}
@@ -697,13 +1011,31 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
 
           <div class="search-examples">
             <span class="ex-label">Try asking:</span>
-            <button class="chip-btn" on:click={() => { searchQuery = "TCS cloud hosting invoice"; handleSearch(); }}>
+            <button
+              class="chip-btn"
+              on:click={() => {
+                searchQuery = 'TCS cloud hosting invoice';
+                handleSearch();
+              }}
+            >
               "TCS cloud hosting invoice"
             </button>
-            <button class="chip-btn" on:click={() => { searchQuery = "agreement with 1 year automatic renewal"; handleSearch(); }}>
+            <button
+              class="chip-btn"
+              on:click={() => {
+                searchQuery = 'agreement with 1 year automatic renewal';
+                handleSearch();
+              }}
+            >
               "agreement with 1 year automatic renewal"
             </button>
-            <button class="chip-btn" on:click={() => { searchQuery = "contracts with liquidated damages penalty"; handleSearch(); }}>
+            <button
+              class="chip-btn"
+              on:click={() => {
+                searchQuery = 'contracts with liquidated damages penalty';
+                handleSearch();
+              }}
+            >
               "liquidated damages penalty"
             </button>
           </div>
@@ -719,16 +1051,19 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
             </div>
           {:else}
             <div class="results-meta">
-              Found <strong>{searchResults.length}</strong> matching documents for query "<em>{searchQuery}</em>":
+              Found <strong>{searchResults.length}</strong> matching documents for query "<em
+                >{searchQuery}</em
+              >":
             </div>
 
             {#each searchResults as item}
-              <div 
-                class="glass-card interactive result-card" 
-                role="button" 
+              <div
+                class="glass-card interactive result-card"
+                role="button"
                 tabindex="0"
                 on:click={() => viewDocumentDetail(item.document_id)}
-                on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && viewDocumentDetail(item.document_id)}
+                on:keydown={(e) =>
+                  (e.key === 'Enter' || e.key === ' ') && viewDocumentDetail(item.document_id)}
               >
                 <div class="result-top">
                   <div class="result-title-group">
@@ -738,7 +1073,9 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
                   </div>
                   <div class="similarity-score">
                     <span class="score-label">Vector Similarity:</span>
-                    <span class="badge badge-cyan">{Math.round(item.similarity_score * 100)}% Match</span>
+                    <span class="badge badge-cyan"
+                      >{Math.round(item.similarity_score * 100)}% Match</span
+                    >
                   </div>
                 </div>
 
@@ -769,44 +1106,64 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
         {#if !selectedDoc}
           <div class="empty-state glass-card">
             <h4>No Document Selected</h4>
-            <p>Please select a document from the Dashboard or Search view to inspect its intelligence.</p>
-            <button class="btn-primary" on:click={() => activeTab = 'dashboard'}>Return to Dashboard</button>
+            <p>
+              Please select a document from the Dashboard or Search view to inspect its
+              intelligence.
+            </p>
+            <button class="btn-primary" on:click={() => (activeTab = 'dashboard')}
+              >Return to Dashboard</button
+            >
           </div>
         {:else}
           <div class="viewer-header">
             <div class="doc-title-row">
-              <h2>{selectedDoc.insights ? selectedDoc.insights.title : selectedDoc.original_filename}</h2>
-              <span class="badge badge-purple">{selectedDoc.insights ? selectedDoc.insights.document_type : selectedDoc.file_type}</span>
-              <span class="badge badge-emerald">Conf: {Math.round((selectedDoc.insights?.confidence_score || 0.95) * 100)}%</span>
+              <h2>
+                {selectedDoc.insights ? selectedDoc.insights.title : selectedDoc.original_filename}
+              </h2>
+              <span class="badge badge-purple"
+                >{selectedDoc.insights
+                  ? selectedDoc.insights.document_type
+                  : selectedDoc.file_type}</span
+              >
+              <span class="badge badge-emerald"
+                >Conf: {Math.round((selectedDoc.insights?.confidence_score || 0.95) * 100)}%</span
+              >
             </div>
             <div class="header-actions">
               <!-- Mode Toggle: Original vs Redacted -->
-              <div class="redaction-switch-pill" title="Toggle between original document and PII-redacted sanitized PDF">
-                <button 
-                  class="pill-btn {!isRedactedView ? 'active' : ''}" 
-                  on:click={() => isRedactedView = false}
+              <div
+                class="redaction-switch-pill"
+                title="Toggle between original document and PII-redacted sanitized PDF"
+              >
+                <button
+                  class="pill-btn {!isRedactedView ? 'active' : ''}"
+                  on:click={() => (isRedactedView = false)}
                 >
                   📄 Original
                 </button>
-                <button 
-                  class="pill-btn {isRedactedView ? 'active redacted-glow' : ''}" 
-                  on:click={() => isRedactedView = true}
+                <button
+                  class="pill-btn {isRedactedView ? 'active redacted-glow' : ''}"
+                  on:click={() => (isRedactedView = true)}
                 >
                   🛡️ PII Redacted
                 </button>
               </div>
 
               {#if isRedactedView}
-                <a 
-                  href={`/api/v1/documents/${selectedDoc.id}/redacted-file`} 
-                  download={`${selectedDoc.original_filename.replace(/\.[^/.]+$/, '')}_REDACTED.pdf`} 
+                <a
+                  href={`/api/v1/documents/${selectedDoc.id}/redacted-file`}
+                  download={`${selectedDoc.original_filename.replace(/\.[^/.]+$/, '')}_REDACTED.pdf`}
                   class="btn-action download-redacted"
                   title="Download physically sanitized PDF"
                 >
                   ⬇ Download Redacted PDF
                 </a>
               {:else}
-                <a href="/api/v1/documents/{selectedDoc.id}/file" target="_blank" class="btn-secondary">
+                <a
+                  href="/api/v1/documents/{selectedDoc.id}/file"
+                  target="_blank"
+                  class="btn-secondary"
+                >
                   View Raw File ↗
                 </a>
               {/if}
@@ -821,8 +1178,10 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
           <div class="split-container">
             <!-- Left Panel: Interactive Visual PDF Canvas & Highlighting Viewer -->
             <div class="glass-card panel-left-viewer">
-              <PdfViewer 
-                fileUrl={isRedactedView ? `/api/v1/documents/${selectedDoc.id}/redacted-file` : `/api/v1/documents/${selectedDoc.id}/file`}
+              <PdfViewer
+                fileUrl={isRedactedView
+                  ? `/api/v1/documents/${selectedDoc.id}/redacted-file`
+                  : `/api/v1/documents/${selectedDoc.id}/file`}
                 fileType={selectedDoc.file_type}
                 rawText={selectedDoc.insights?.raw_extracted_text || ''}
                 bind:highlightQuery={activeHighlightTerm}
@@ -831,141 +1190,337 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
 
             <!-- Right Panel: AI Extracted Intel with 1-Click Interactive Locate Buttons -->
             <div class="panel-right">
-              <!-- Summary Card -->
-              <div class="glass-card insight-card">
-                <div class="insight-header">
-                  <span class="icon">📋</span>
-                  <h3>Executive Summary</h3>
-                </div>
-                <p class="summary-text">{selectedDoc.insights?.summary || 'No summary available.'}</p>
+              <!-- Right Panel Mode Switcher -->
+              <div class="panel-tab-bar">
+                <button
+                  class="panel-tab-btn {viewerRightTab === 'intel' ? 'active' : ''}"
+                  on:click={() => (viewerRightTab = 'intel')}
+                >
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    ><path
+                      d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                    /><polyline points="14 2 14 8 20 8" /><line
+                      x1="16"
+                      y1="13"
+                      x2="8"
+                      y2="13"
+                    /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg
+                  >
+                  Extracted Intelligence
+                </button>
+                <button
+                  class="panel-tab-btn {viewerRightTab === 'chat' ? 'active chat-active' : ''}"
+                  on:click={() => {
+                    viewerRightTab = 'chat';
+                    initDocChat();
+                  }}
+                >
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    ><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg
+                  >
+                  Conversational Document AI {chatMessages.length > 0
+                    ? `(${chatMessages.length})`
+                    : ''}
+                </button>
               </div>
 
-              <!-- Key Takeaways with Interactive Highlight -->
-              {#if selectedDoc.insights?.key_points && selectedDoc.insights.key_points.length > 0}
+              {#if viewerRightTab === 'intel'}
+                <!-- Summary Card -->
                 <div class="glass-card insight-card">
                   <div class="insight-header">
-                    <span class="icon">💡</span>
-                    <h3>Key Takeaways & Findings</h3>
-                    <span class="hint-tag">Click to locate in doc</span>
+                    <span class="icon">📋</span>
+                    <h3>Executive Summary</h3>
                   </div>
-                  <ul class="key-points-list">
-                    {#each selectedDoc.insights.key_points as pt, idx}
-                      <li>
-                        <button 
-                          type="button"
-                          class="interactive-point-btn {activeHighlightKey === pt ? 'active-target' : ''}" 
-                          on:click={() => locateTakeaway(pt)}
-                          title="Click to highlight in document"
-                        >
-                          <div class="point-content-wrap">
-                            <span class="point-index">#{idx + 1}</span>
-                            <span class="point-text">{pt}</span>
-                          </div>
-                          <span class="locate-icon">🔍 Locate →</span>
-                        </button>
-                      </li>
-                    {/each}
-                  </ul>
+                  <p class="summary-text">
+                    {selectedDoc.insights?.summary || 'No summary available.'}
+                  </p>
                 </div>
-              {/if}
 
-              <!-- Structured Entities Grid with 1-Click Highlight -->
-              {#if selectedDoc.insights?.entities && Object.keys(selectedDoc.insights.entities).length > 0}
-                <div class="glass-card insight-card">
-                  <div class="insight-header">
-                    <span class="icon">🏷️</span>
-                    <h3>Extracted Entities & Metadata</h3>
-                    <span class="hint-tag">Click entity to locate</span>
-                  </div>
-                  <div class="entities-grid">
-                    {#each Object.entries(selectedDoc.insights.entities) as [key, val]}
-                      {#if val}
-                        <button 
-                          type="button"
-                          class="entity-item-btn {activeHighlightKey === key ? 'active-target' : ''}"
-                          on:click={() => locateEntity(key, val)}
-                          title="Click to locate on document"
-                        >
-                          <div class="entity-top">
-                            <span class="entity-key">{key.replace(/_/g, ' ')}</span>
-                            <span class="mini-search-icon">🔍</span>
-                          </div>
-                          <span class="entity-val">{Array.isArray(val) ? val.join(', ') : val}</span>
-                        </button>
-                      {/if}
-                    {/each}
-                  </div>
-                </div>
-              {/if}
-
-              <!-- Risk Clauses Alert with 1-Click Highlight -->
-              {#if selectedDoc.insights?.risk_clauses && selectedDoc.insights.risk_clauses.length > 0}
-                <div class="glass-card insight-card alert-risk">
-                  <div class="insight-header">
-                    <span class="icon">⚠️</span>
-                    <h3>Risk & Penalty Clauses Detected</h3>
-                    <span class="hint-tag alert">High Priority</span>
-                  </div>
-                  <ul class="risk-list">
-                    {#each selectedDoc.insights.risk_clauses as clause}
-                      <li>
-                        <button 
-                          type="button"
-                          class="interactive-risk-btn {activeHighlightKey === clause ? 'active-target' : ''}"
-                          on:click={() => locateRiskClause(clause)}
-                          title="Click to highlight clause in document"
-                        >
-                          <span class="clause-text">{clause}</span>
-                          <span class="locate-icon">🔍 Locate Clause</span>
-                        </button>
-                      </li>
-                    {/each}
-                  </ul>
-                </div>
-              {/if}
-
-              <!-- Line Items Table with Interactive Highlight -->
-              {#if selectedDoc.insights?.line_items && selectedDoc.insights.line_items.length > 0}
-                <div class="glass-card insight-card">
-                  <div class="insight-header">
-                    <span class="icon">📊</span>
-                    <h3>Extracted Line Items</h3>
-                    <span class="hint-tag">Click row to locate</span>
-                  </div>
-                  <table class="line-items-table">
-                    <thead>
-                      <tr>
-                        <th>Description</th>
-                        <th>Qty</th>
-                        <th>Amount</th>
-                        <th style="text-align: right;">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {#each selectedDoc.insights.line_items as item}
-                        <tr 
-                          class="clickable-line-row {activeHighlightKey === item.description ? 'active-target' : ''}"
-                          on:click={() => locateLineItem(item)}
-                        >
-                          <td class="line-desc-cell">
-                            <span class="line-desc-text">{item.description}</span>
-                          </td>
-                          <td class="qty-cell">{item.quantity || 1}</td>
-                          <td class="amt">₹{Number(item.amount).toLocaleString()}</td>
-                          <td class="locate-action-cell" style="text-align: right;">
-                            <button 
-                              type="button" 
-                              class="line-locate-btn"
-                              on:click|stopPropagation={() => locateLineItem(item)}
-                              title="Click to jump to line item in document"
-                            >
-                              🔍 Locate →
-                            </button>
-                          </td>
-                        </tr>
+                <!-- Key Takeaways with Interactive Highlight -->
+                {#if selectedDoc.insights?.key_points && selectedDoc.insights.key_points.length > 0}
+                  <div class="glass-card insight-card">
+                    <div class="insight-header">
+                      <span class="icon">💡</span>
+                      <h3>Key Takeaways & Findings</h3>
+                      <span class="hint-tag">Click to locate in doc</span>
+                    </div>
+                    <ul class="key-points-list">
+                      {#each selectedDoc.insights.key_points as pt, idx}
+                        <li>
+                          <button
+                            type="button"
+                            class="interactive-point-btn {activeHighlightKey === pt
+                              ? 'active-target'
+                              : ''}"
+                            on:click={() => locateTakeaway(pt)}
+                            title="Click to highlight in document"
+                          >
+                            <div class="point-content-wrap">
+                              <span class="point-index">#{idx + 1}</span>
+                              <span class="point-text">{pt}</span>
+                            </div>
+                            <span class="locate-icon">🔍 Locate →</span>
+                          </button>
+                        </li>
                       {/each}
-                    </tbody>
-                  </table>
+                    </ul>
+                  </div>
+                {/if}
+
+                <!-- Structured Entities Grid with 1-Click Highlight -->
+                {#if selectedDoc.insights?.entities && Object.keys(selectedDoc.insights.entities).length > 0}
+                  <div class="glass-card insight-card">
+                    <div class="insight-header">
+                      <span class="icon">🏷️</span>
+                      <h3>Extracted Entities & Metadata</h3>
+                      <span class="hint-tag">Click entity to locate</span>
+                    </div>
+                    <div class="entities-grid">
+                      {#each Object.entries(selectedDoc.insights.entities) as [key, val]}
+                        {#if val}
+                          <button
+                            type="button"
+                            class="entity-item-btn {activeHighlightKey === key
+                              ? 'active-target'
+                              : ''}"
+                            on:click={() => locateEntity(key, val)}
+                            title="Click to locate on document"
+                          >
+                            <div class="entity-top">
+                              <span class="entity-key">{key.replace(/_/g, ' ')}</span>
+                              <span class="mini-search-icon">🔍</span>
+                            </div>
+                            <span class="entity-val"
+                              >{Array.isArray(val) ? val.join(', ') : val}</span
+                            >
+                          </button>
+                        {/if}
+                      {/each}
+                    </div>
+                  </div>
+                {/if}
+
+                <!-- Risk Clauses Alert with 1-Click Highlight -->
+                {#if selectedDoc.insights?.risk_clauses && selectedDoc.insights.risk_clauses.length > 0}
+                  <div class="glass-card insight-card alert-risk">
+                    <div class="insight-header">
+                      <span class="icon">⚠️</span>
+                      <h3>Risk & Penalty Clauses Detected</h3>
+                      <span class="hint-tag alert">High Priority</span>
+                    </div>
+                    <ul class="risk-list">
+                      {#each selectedDoc.insights.risk_clauses as clause}
+                        <li>
+                          <button
+                            type="button"
+                            class="interactive-risk-btn {activeHighlightKey === clause
+                              ? 'active-target'
+                              : ''}"
+                            on:click={() => locateRiskClause(clause)}
+                            title="Click to highlight clause in document"
+                          >
+                            <span class="clause-text">{clause}</span>
+                            <span class="locate-icon">🔍 Locate Clause</span>
+                          </button>
+                        </li>
+                      {/each}
+                    </ul>
+                  </div>
+                {/if}
+
+                <!-- Line Items Table with Interactive Highlight -->
+                {#if selectedDoc.insights?.line_items && selectedDoc.insights.line_items.length > 0}
+                  <div class="glass-card insight-card">
+                    <div class="insight-header">
+                      <span class="icon">📊</span>
+                      <h3>Extracted Line Items</h3>
+                      <span class="hint-tag">Click row to locate</span>
+                    </div>
+                    <table class="line-items-table">
+                      <thead>
+                        <tr>
+                          <th>Description</th>
+                          <th>Qty</th>
+                          <th>Amount</th>
+                          <th style="text-align: right;">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {#each selectedDoc.insights.line_items as item}
+                          <tr
+                            class="clickable-line-row {activeHighlightKey === item.description
+                              ? 'active-target'
+                              : ''}"
+                            on:click={() => locateLineItem(item)}
+                          >
+                            <td class="line-desc-cell">
+                              <span class="line-desc-text">{item.description}</span>
+                            </td>
+                            <td class="qty-cell">{item.quantity || 1}</td>
+                            <td class="amt">₹{Number(item.amount).toLocaleString()}</td>
+                            <td class="locate-action-cell" style="text-align: right;">
+                              <button
+                                type="button"
+                                class="line-locate-btn"
+                                on:click|stopPropagation={() => locateLineItem(item)}
+                                title="Click to jump to line item in document"
+                              >
+                                🔍 Locate →
+                              </button>
+                            </td>
+                          </tr>
+                        {/each}
+                      </tbody>
+                    </table>
+                  </div>
+                {/if}
+              {:else if viewerRightTab === 'chat'}
+                <div class="glass-card doc-chat-container">
+                  <!-- Chat Header -->
+                  <div class="chat-header">
+                    <div class="chat-header-left">
+                      <div class="chat-ai-avatar">✨</div>
+                      <div>
+                        <h4>Cognifolio Assistant</h4>
+                        <span class="chat-model-badge">Gemini 3.5 Flash · Document Grounded</span>
+                      </div>
+                    </div>
+                    <button class="chat-clear-btn" on:click={clearChat} title="Reset conversation">
+                      ↺ Reset Chat
+                    </button>
+                  </div>
+
+                  <!-- Messages Thread -->
+                  <div class="chat-messages-scroll" bind:this={chatContainerRef}>
+                    <!-- Welcome Card with Dynamic Quick Starters -->
+                    <div class="chat-welcome-box">
+                      <p class="welcome-title">
+                        Ask anything about <strong
+                          >{selectedDoc.insights?.title || selectedDoc.original_filename}</strong
+                        >
+                      </p>
+                      <p class="welcome-desc">
+                        Answers are grounded in this document with clickable citations that navigate
+                        and highlight the PDF canvas on the left.
+                      </p>
+
+                      <div class="starter-chips-container">
+                        <span class="starter-label">Suggested Questions:</span>
+                        <div class="starter-chips">
+                          {#each getDocStarters(selectedDoc) as q}
+                            <button class="starter-chip" on:click={() => handleSendChat(q)}>
+                              {q} →
+                            </button>
+                          {/each}
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Conversation History -->
+                    {#each chatMessages as msg}
+                      <div class="chat-bubble-row {msg.role}">
+                        <div class="chat-avatar">{msg.role === 'user' ? '👤' : '✨'}</div>
+                        <div class="chat-bubble {msg.role}">
+                          <div class="bubble-content markdown-body">
+                            {@html formatChatReply(msg.content)}
+                          </div>
+
+                          <!-- Clickable Citations linking to PDF canvas -->
+                          {#if msg.citations && msg.citations.length > 0}
+                            <div class="chat-citations-box">
+                              <span class="citation-box-title"
+                                >📍 Grounded Citations (Click to locate on PDF):</span
+                              >
+                              <div class="citation-pills-wrap">
+                                {#each msg.citations as cit}
+                                  <button
+                                    class="citation-pill"
+                                    on:click={() => handleCitationClick(cit)}
+                                    title="Click to jump and highlight this passage on the PDF canvas"
+                                  >
+                                    <span class="cit-icon">🔍</span>
+                                    <span class="cit-label">{cit.label || 'Citation'}:</span>
+                                    <span class="cit-text">"{cit.text}"</span>
+                                    {#if cit.page}
+                                      <span class="cit-page">Page {cit.page}</span>
+                                    {/if}
+                                  </button>
+                                {/each}
+                              </div>
+                            </div>
+                          {/if}
+
+                          <!-- Follow-up Prompt Suggestions -->
+                          {#if msg.followups && msg.followups.length > 0}
+                            <div class="chat-followups-box">
+                              <span class="followup-title">Suggested follow-ups:</span>
+                              <div class="followup-chips">
+                                {#each msg.followups as fq}
+                                  <button class="followup-chip" on:click={() => handleSendChat(fq)}>
+                                    {fq} ↗
+                                  </button>
+                                {/each}
+                              </div>
+                            </div>
+                          {/if}
+                        </div>
+                      </div>
+                    {/each}
+
+                    {#if isChatLoading}
+                      <div class="chat-bubble-row assistant">
+                        <div class="chat-avatar">✨</div>
+                        <div class="chat-bubble assistant loading-bubble">
+                          <div class="typing-indicator">
+                            <span></span><span></span><span></span>
+                          </div>
+                          <span class="typing-text"
+                            >Gemini 3.5 Flash is analyzing document context...</span
+                          >
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
+
+                  <!-- Sticky Bottom Input Bar -->
+                  <form class="chat-input-bar" on:submit|preventDefault={() => handleSendChat()}>
+                    <input
+                      type="text"
+                      placeholder="Ask anything about this document (e.g. fees, penalty clauses, deadlines)..."
+                      bind:value={chatInput}
+                      disabled={isChatLoading}
+                    />
+                    <button
+                      type="submit"
+                      class="chat-send-btn"
+                      disabled={isChatLoading || !chatInput.trim()}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        ><line x1="22" y1="2" x2="11" y2="13" /><polygon
+                          points="22 2 15 22 11 13 2 9 22 2"
+                        /></svg
+                      >
+                      <span>Send</span>
+                    </button>
+                  </form>
                 </div>
               {/if}
             </div>
@@ -980,30 +1535,49 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
         <div class="view-header">
           <div>
             <h2>Enterprise Compliance & Audit Trails</h2>
-            <p class="subtitle">SOC2 Type II, GDPR Article 17, and HIPAA verified immutable audit logging and real-time PII redaction.</p>
+            <p class="subtitle">
+              SOC2 Type II, GDPR Article 17, and HIPAA verified immutable audit logging and
+              real-time PII redaction.
+            </p>
           </div>
           <div class="compliance-header-actions">
-            <button 
-              class="btn-secondary" 
+            <button
+              class="btn-secondary"
               on:click={() => handleExportAudit('csv')}
               disabled={isExportingAudit}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                ><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline
+                  points="7 10 12 15 17 10"
+                /><line x1="12" y1="15" x2="12" y2="3" /></svg
+              >
               Export CSV
             </button>
-            <button 
-              class="btn-secondary" 
+            <button
+              class="btn-secondary"
               on:click={() => handleExportAudit('json')}
               disabled={isExportingAudit}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                ><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline
+                  points="7 10 12 15 17 10"
+                /><line x1="12" y1="15" x2="12" y2="3" /></svg
+              >
               Export JSON
             </button>
-            <button 
-              class="btn-primary" 
-              on:click={refreshCompliance}
-              disabled={isLoadingCompliance}
-            >
+            <button class="btn-primary" on:click={refreshCompliance} disabled={isLoadingCompliance}>
               🔄 Refresh Stream
             </button>
           </div>
@@ -1017,11 +1591,16 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
               <span class="badge badge-emerald">Verified</span>
             </div>
             <div class="kpi-main">
-              <span class="kpi-number text-emerald">{complianceStats?.compliance_score || 99.2}%</span>
+              <span class="kpi-number text-emerald"
+                >{complianceStats?.compliance_score || 99.2}%</span
+              >
               <span class="kpi-sub">SOC2 Type II & GDPR Ready</span>
             </div>
             <div class="kpi-footer-progress">
-              <div class="progress-bar" style="width: {complianceStats?.compliance_score || 99.2}%;"></div>
+              <div
+                class="progress-bar"
+                style="width: {complianceStats?.compliance_score || 99.2}%;"
+              ></div>
             </div>
           </div>
 
@@ -1049,12 +1628,12 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
               </span>
             </div>
             <div class="kpi-main">
-              <span class="kpi-number text-cyan">{complianceStats?.total_audit_events || auditLogs.length}</span>
+              <span class="kpi-number text-cyan"
+                >{complianceStats?.total_audit_events || auditLogs.length}</span
+              >
               <span class="kpi-sub">Cryptographic SHA-256 logs</span>
             </div>
-            <div class="kpi-footer-text">
-              100% action traceability
-            </div>
+            <div class="kpi-footer-text">100% action traceability</div>
           </div>
 
           <div class="glass-card comp-kpi-card">
@@ -1066,9 +1645,7 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
               <span class="kpi-number text-amber">90 Days</span>
               <span class="kpi-sub">Auto-purge raw files</span>
             </div>
-            <div class="kpi-footer-text">
-              GDPR Article 17 Compliant
-            </div>
+            <div class="kpi-footer-text">GDPR Article 17 Compliant</div>
           </div>
         </div>
 
@@ -1078,7 +1655,8 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
             <div>
               <h3>Active PII Sanitization & Guardrails Inventory</h3>
               <p class="matrix-desc">
-                Sensitive personally identifiable data is intercepted, masked in memory with replacement tokens, and physically black-boxed in downloadable PDFs before storage.
+                Sensitive personally identifiable data is intercepted, masked in memory with
+                replacement tokens, and physically black-boxed in downloadable PDFs before storage.
               </p>
             </div>
             <span class="badge badge-emerald">Real-time Regex + PyMuPDF Engine</span>
@@ -1091,7 +1669,9 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
                 <span class="box-name">Indian Aadhaar (UIDAI)</span>
                 <span class="box-count">{complianceStats?.pii_breakdown?.aadhaar || 0}</span>
               </div>
-              <div class="box-rule">Pattern: 12-digit formatted \b[2-9]\d{3}[ -]?\d{4}[ -]?\d{4}\b</div>
+              <div class="box-rule">
+                Pattern: 12-digit formatted \b[2-9]\d{3}[ -]?\d{4}[ -]?\d{4}\b
+              </div>
               <div class="box-token">Token: [REDACTED_AADHAAR]</div>
             </div>
 
@@ -1152,15 +1732,31 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
           <div class="audit-trail-header">
             <div>
               <h3>Immutable Audit Log Explorer</h3>
-              <p class="audit-sub">Search and inspect all system interactions, downloads, uploads, and automated redaction events.</p>
+              <p class="audit-sub">
+                Search and inspect all system interactions, downloads, uploads, and automated
+                redaction events.
+              </p>
             </div>
             <div class="audit-filters-bar">
               <!-- Search in logs -->
               <div class="audit-search-input-wrapper">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input 
-                  type="text" 
-                  placeholder="Filter by filename, actor, or ID..." 
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  ><circle cx="11" cy="11" r="8" /><line
+                    x1="21"
+                    y1="21"
+                    x2="16.65"
+                    y2="16.65"
+                  /></svg
+                >
+                <input
+                  type="text"
+                  placeholder="Filter by filename, actor, or ID..."
                   bind:value={auditSearchQuery}
                   on:input={() => refreshCompliance()}
                 />
@@ -1168,32 +1764,32 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
 
               <!-- Filter Buttons -->
               <div class="filter-pills-row">
-                <button 
-                  class="filter-pill {auditFilter === 'all' ? 'active' : ''}" 
+                <button
+                  class="filter-pill {auditFilter === 'all' ? 'active' : ''}"
                   on:click={() => handleAuditFilterChange('all')}
                 >
                   All ({complianceStats?.total_audit_events || auditLogs.length})
                 </button>
-                <button 
-                  class="filter-pill {auditFilter === 'uploaded' ? 'active' : ''}" 
+                <button
+                  class="filter-pill {auditFilter === 'uploaded' ? 'active' : ''}"
                   on:click={() => handleAuditFilterChange('uploaded')}
                 >
                   Uploads ({complianceStats?.action_breakdown?.uploaded || 0})
                 </button>
-                <button 
-                  class="filter-pill {auditFilter === 'viewed' ? 'active' : ''}" 
+                <button
+                  class="filter-pill {auditFilter === 'viewed' ? 'active' : ''}"
                   on:click={() => handleAuditFilterChange('viewed')}
                 >
                   Views
                 </button>
-                <button 
-                  class="filter-pill {auditFilter === 'searched' ? 'active' : ''}" 
+                <button
+                  class="filter-pill {auditFilter === 'searched' ? 'active' : ''}"
                   on:click={() => handleAuditFilterChange('searched')}
                 >
                   Searches
                 </button>
-                <button 
-                  class="filter-pill {auditFilter === 'redacted' ? 'active' : ''}" 
+                <button
+                  class="filter-pill {auditFilter === 'redacted' ? 'active' : ''}"
                   on:click={() => handleAuditFilterChange('redacted')}
                 >
                   Redactions
@@ -1262,7 +1858,10 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
                       <td class="col-resource">
                         <div class="resource-cell">
                           <span class="res-filename">
-                            {log.metadata?.filename || log.target_id || log.target_type || 'System Event'}
+                            {log.metadata?.filename ||
+                              log.target_id ||
+                              log.target_type ||
+                              'System Event'}
                           </span>
                           {#if log.target_id}
                             <span class="res-id font-mono">{log.target_id.slice(0, 8)}...</span>
@@ -1277,14 +1876,23 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
                             {/each}
                           </div>
                         {:else if log.metadata?.query}
-                          <span class="meta-query font-mono">"{log.metadata.query}" ({log.metadata.matches_found || 0} hits)</span>
+                          <span class="meta-query font-mono"
+                            >"{log.metadata.query}" ({log.metadata.matches_found || 0} hits)</span
+                          >
                         {:else}
                           <span class="text-dim">Standard Audit Record</span>
                         {/if}
                       </td>
                       <td class="col-verify">
                         <span class="verify-badge">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="3"><polyline points="20 6 9 17 4 12" /></svg
+                          >
                           SHA-256 Valid
                         </span>
                       </td>
@@ -1304,7 +1912,7 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
               <h3>Regulatory Framework Compliance Status</h3>
             </div>
             <div class="frameworks-list">
-              {#each (complianceStats?.frameworks || []) as fw}
+              {#each complianceStats?.frameworks || [] as fw}
                 <div class="framework-item">
                   <div class="fw-left">
                     <strong>{fw.framework}</strong>
@@ -1322,7 +1930,8 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
               <h3>GDPR Article 17: Right to Erasure</h3>
             </div>
             <p>
-              Instantly purge all stored documents, extracted intelligence, and vector embeddings in Qdrant and PostgreSQL:
+              Instantly purge all stored documents, extracted intelligence, and vector embeddings in
+              Qdrant and PostgreSQL:
             </p>
             <div class="retention-info-box">
               <div class="info-row">
@@ -1334,20 +1943,22 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
                 <strong>{documents.length}</strong>
               </div>
             </div>
-            <button class="btn-action delete-all" on:click={() => {
-              if (confirm('Permanently purge all workspace documents and reset database?')) {
-                documents.forEach(d => deleteDocument(d.id));
-                refreshAll();
-                alert('All documents and vector embeddings have been securely purged.');
-              }
-            }}>
+            <button
+              class="btn-action delete-all"
+              on:click={() => {
+                if (confirm('Permanently purge all workspace documents and reset database?')) {
+                  documents.forEach((d) => deleteDocument(d.id));
+                  refreshAll();
+                  alert('All documents and vector embeddings have been securely purged.');
+                }
+              }}
+            >
               Purge All Workspace Data
             </button>
           </div>
         </div>
       </div>
     {/if}
-
   </main>
 </div>
 
@@ -1530,9 +2141,21 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     border-radius: var(--radius-sm);
     font-size: 0.9rem;
   }
-  .alert-error { background: rgba(244, 63, 94, 0.15); border: 1px solid var(--accent-rose); color: #fda4af; }
-  .alert-success { background: rgba(16, 185, 129, 0.15); border: 1px solid var(--accent-emerald); color: #6ee7b7; }
-  .close-btn { background: transparent; color: inherit; font-size: 1.1rem; }
+  .alert-error {
+    background: rgba(244, 63, 94, 0.15);
+    border: 1px solid var(--accent-rose);
+    color: #fda4af;
+  }
+  .alert-success {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid var(--accent-emerald);
+    color: #6ee7b7;
+  }
+  .close-btn {
+    background: transparent;
+    color: inherit;
+    font-size: 1.1rem;
+  }
 
   /* Stats Grid */
   .stats-grid {
@@ -1558,10 +2181,18 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     justify-content: center;
     font-size: 1.5rem;
   }
-  .stat-icon.cyan { background: rgba(6, 182, 212, 0.15); }
-  .stat-icon.emerald { background: rgba(16, 185, 129, 0.15); }
-  .stat-icon.purple { background: rgba(139, 92, 246, 0.15); }
-  .stat-icon.amber { background: rgba(245, 158, 11, 0.15); }
+  .stat-icon.cyan {
+    background: rgba(6, 182, 212, 0.15);
+  }
+  .stat-icon.emerald {
+    background: rgba(16, 185, 129, 0.15);
+  }
+  .stat-icon.purple {
+    background: rgba(139, 92, 246, 0.15);
+  }
+  .stat-icon.amber {
+    background: rgba(245, 158, 11, 0.15);
+  }
 
   .stat-info {
     display: flex;
@@ -1900,7 +2531,9 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .demo-samples {
@@ -2057,6 +2690,528 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     padding-right: 6px;
   }
 
+  /* Segmented Right Panel Tab Switcher */
+  .panel-tab-bar {
+    display: flex;
+    gap: 6px;
+    padding: 4px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-md);
+    backdrop-filter: blur(8px);
+    margin-bottom: 2px;
+  }
+
+  .panel-tab-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 14px;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #94a3b8;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .panel-tab-btn:hover {
+    color: #f1f5f9;
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .panel-tab-btn.active {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  }
+
+  .panel-tab-btn.active.chat-active {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.35);
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.15);
+  }
+
+  /* Conversational Document AI Container */
+  .doc-chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 680px;
+    padding: 0;
+    overflow: hidden;
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-md);
+    position: relative;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+
+  .chat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(10, 15, 29, 0.5);
+    backdrop-filter: blur(8px);
+    flex-shrink: 0;
+  }
+
+  .chat-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .chat-ai-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, #0ea5e9, #6366f1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    box-shadow: 0 0 14px rgba(14, 165, 233, 0.35);
+    flex-shrink: 0;
+  }
+
+  .chat-header h4 {
+    margin: 0;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #f8fafc;
+    line-height: 1.2;
+  }
+
+  .chat-model-badge {
+    font-size: 0.7rem;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    padding: 2px 7px;
+    border-radius: 12px;
+    font-weight: 500;
+    display: inline-block;
+    margin-top: 2px;
+  }
+
+  .chat-clear-btn {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #94a3b8;
+    font-size: 0.74rem;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .chat-clear-btn:hover {
+    background: rgba(244, 63, 94, 0.12);
+    border-color: rgba(244, 63, 94, 0.3);
+    color: #fda4af;
+  }
+
+  /* Messages Scroll Area */
+  .chat-messages-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    scroll-behavior: smooth;
+  }
+
+  /* Welcome Box & Quick Starters */
+  .chat-welcome-box {
+    padding: 14px 16px;
+    background: rgba(30, 41, 59, 0.45);
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-sm);
+  }
+
+  .welcome-title {
+    margin: 0 0 4px 0;
+    font-size: 0.88rem;
+    color: #f1f5f9;
+    line-height: 1.4;
+  }
+
+  .welcome-desc {
+    margin: 0 0 12px 0;
+    font-size: 0.78rem;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
+
+  .starter-chips-container {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .starter-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    font-weight: 700;
+  }
+
+  .starter-chips {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .starter-chip {
+    text-align: left;
+    background: rgba(14, 165, 233, 0.06);
+    border: 1px solid rgba(14, 165, 233, 0.2);
+    color: #bae6fd;
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .starter-chip:hover {
+    background: rgba(14, 165, 233, 0.16);
+    border-color: rgba(14, 165, 233, 0.45);
+    transform: translateX(2px);
+    color: #ffffff;
+  }
+
+  /* Chat Bubbles */
+  .chat-bubble-row {
+    display: flex;
+    gap: 10px;
+    max-width: 100%;
+    animation: fadeInBubble 0.25s ease-out;
+  }
+
+  @keyframes fadeInBubble {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .chat-bubble-row.user {
+    flex-direction: row-reverse;
+  }
+
+  .chat-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82rem;
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    margin-top: 2px;
+  }
+
+  .chat-bubble-row.user .chat-avatar {
+    background: rgba(99, 102, 241, 0.3);
+    border-color: rgba(99, 102, 241, 0.45);
+  }
+
+  .chat-bubble {
+    max-width: 86%;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 0.86rem;
+    line-height: 1.55;
+    word-break: break-word;
+  }
+
+  .chat-bubble.user {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: #ffffff;
+    border-bottom-right-radius: 3px;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  }
+
+  .chat-bubble.assistant {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #e2e8f0;
+    border-bottom-left-radius: 3px;
+  }
+
+  .bubble-content :global(p) {
+    margin: 0 0 8px 0;
+  }
+
+  .bubble-content :global(p:last-child) {
+    margin-bottom: 0;
+  }
+
+  .bubble-content :global(strong) {
+    color: #f8fafc;
+    font-weight: 600;
+  }
+
+  .bubble-content :global(ul) {
+    margin: 6px 0 8px 18px;
+    padding: 0;
+  }
+
+  .bubble-content :global(li) {
+    margin-bottom: 4px;
+  }
+
+  /* Grounded Citations Linking to PDF Canvas */
+  .chat-citations-box {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .citation-box-title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #38bdf8;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .citation-pills-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .citation-pill {
+    text-align: left;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 10px;
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 7px;
+    color: #bae6fd;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+  }
+
+  .citation-pill:hover {
+    background: rgba(56, 189, 248, 0.2);
+    border-color: rgba(56, 189, 248, 0.5);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 10px rgba(56, 189, 248, 0.2);
+    color: #ffffff;
+  }
+
+  .cit-icon {
+    flex-shrink: 0;
+    font-size: 0.85rem;
+  }
+
+  .cit-label {
+    font-weight: 700;
+    color: #38bdf8;
+    flex-shrink: 0;
+  }
+
+  .cit-text {
+    font-style: italic;
+    flex: 1;
+    word-break: break-word;
+    color: #e0f2fe;
+  }
+
+  .cit-page {
+    flex-shrink: 0;
+    background: rgba(6, 182, 212, 0.2);
+    border: 1px solid rgba(6, 182, 212, 0.4);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #67e8f9;
+  }
+
+  /* Suggested Follow-up Prompts */
+  .chat-followups-box {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .followup-title {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    font-weight: 600;
+  }
+
+  .followup-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .followup-chip {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    padding: 4px 10px;
+    font-size: 0.74rem;
+    color: #cbd5e1;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .followup-chip:hover {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.35);
+    color: #c7d2fe;
+    transform: translateY(-1px);
+  }
+
+  /* Loading State & Typing Indicator */
+  .loading-bubble {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+  }
+
+  .typing-indicator {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .typing-indicator span {
+    width: 6px;
+    height: 6px;
+    background: #38bdf8;
+    border-radius: 50%;
+    animation: typingPulse 1.4s infinite ease-in-out both;
+  }
+
+  .typing-indicator span:nth-child(1) {
+    animation-delay: -0.32s;
+  }
+
+  .typing-indicator span:nth-child(2) {
+    animation-delay: -0.16s;
+  }
+
+  @keyframes typingPulse {
+    0%,
+    80%,
+    100% {
+      transform: scale(0);
+      opacity: 0.3;
+    }
+    40% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  .typing-text {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    font-style: italic;
+  }
+
+  /* Bottom Chat Input Bar */
+  .chat-input-bar {
+    display: flex;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(10, 15, 29, 0.75);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+    flex-shrink: 0;
+  }
+
+  .chat-input-bar input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-sm);
+    padding: 9px 12px;
+    font-size: 0.85rem;
+    color: #f8fafc;
+    outline: none;
+    transition: all 0.2s;
+  }
+
+  .chat-input-bar input:focus {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .chat-input-bar input::placeholder {
+    color: #64748b;
+  }
+
+  .chat-send-btn {
+    background: linear-gradient(135deg, #0ea5e9, #3b82f6);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 0 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
+  }
+
+  .chat-send-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.45);
+  }
+
+  .chat-send-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
   .hint-tag {
     margin-left: auto;
     font-size: 0.72rem;
@@ -2073,7 +3228,6 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     background: rgba(244, 63, 94, 0.1);
     border-color: rgba(244, 63, 94, 0.3);
   }
-
 
   .interactive-point-btn {
     width: 100%;
@@ -2216,7 +3370,8 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     line-height: 1.6;
   }
 
-  .key-points-list, .risk-list {
+  .key-points-list,
+  .risk-list {
     list-style: none;
     display: flex;
     flex-direction: column;
@@ -2231,7 +3386,7 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
   }
 
   .key-points-list li::before {
-    content: "•";
+    content: '•';
     color: var(--accent-cyan);
     font-weight: bold;
     position: absolute;
@@ -2499,9 +3654,18 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
   }
 
   @keyframes pulse {
-    0% { transform: scale(0.9); opacity: 0.7; }
-    50% { transform: scale(1.3); opacity: 1; }
-    100% { transform: scale(0.9); opacity: 0.7; }
+    0% {
+      transform: scale(0.9);
+      opacity: 0.7;
+    }
+    50% {
+      transform: scale(1.3);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(0.9);
+      opacity: 0.7;
+    }
   }
 
   .kpi-footer-text {
@@ -2852,7 +4016,8 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     white-space: nowrap;
   }
 
-  .audit-loading, .audit-empty {
+  .audit-loading,
+  .audit-empty {
     padding: 36px;
     text-align: center;
     color: var(--text-dim);
@@ -2870,7 +4035,8 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     gap: 24px;
   }
 
-  .compliance-framework-card, .compliance-danger-card {
+  .compliance-framework-card,
+  .compliance-danger-card {
     padding: 24px;
   }
 
@@ -2962,10 +4128,13 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
   }
 
   @media (max-width: 900px) {
-    .analytics-row, .upload-grid, .split-container {
+    .analytics-row,
+    .upload-grid,
+    .split-container {
       grid-template-columns: 1fr;
     }
-    .compliance-kpi-grid, .pii-chips-grid {
+    .compliance-kpi-grid,
+    .pii-chips-grid {
       grid-template-columns: 1fr;
     }
   }
