@@ -546,6 +546,16 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     }
   }
 
+  function getDocFormatInfo(fileType) {
+    const t = (fileType || '').toLowerCase().replace(/^\./, '');
+    if (t === 'pdf') return { label: 'PDF', badgeClass: 'badge-rose' };
+    if (t === 'xlsx' || t === 'xls') return { label: 'XLSX', badgeClass: 'badge-emerald' };
+    if (t === 'csv') return { label: 'CSV', badgeClass: 'badge-emerald' };
+    if (t === 'docx' || t === 'doc') return { label: 'DOCX', badgeClass: 'badge-indigo' };
+    if (['png', 'jpg', 'jpeg', 'webp'].includes(t)) return { label: 'IMG', badgeClass: 'badge-amber' };
+    return { label: t ? t.toUpperCase() : 'TXT', badgeClass: 'badge-slate' };
+  }
+
   async function handleFileUpload(fileToUpload) {
     if (!fileToUpload) return;
     isUploading = true;
@@ -1185,6 +1195,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                 </thead>
                 <tbody>
                   {#each documents as doc}
+                    {@const fmtInfo = getDocFormatInfo(doc.file_type)}
                     <tr>
                       <td class="name-cell">
                         <div class="flex items-center gap-3">
@@ -1194,9 +1205,12 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                             <CIcon name="document" size={16} />
                           </div>
                           <div class="file-details">
-                            <button class="filename-btn" on:click={() => viewDocumentDetail(doc.id)}
-                              >{doc.original_filename}</button
-                            >
+                            <div class="flex items-center gap-2">
+                              <button class="filename-btn" on:click={() => viewDocumentDetail(doc.id)}
+                                >{doc.original_filename}</button
+                              >
+                              <span class="fmt-inline-tag {fmtInfo.badgeClass}">{fmtInfo.label}</span>
+                            </div>
                             <span class="file-summary"
                               >{doc.insights
                                 ? doc.insights.summary.slice(0, 75) + '...'
@@ -1210,7 +1224,10 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                           {doc.insights ? doc.insights.document_type : doc.file_type}
                         </CBadge>
                       </td>
-                      <td>{doc.page_count} pg ({Math.round(doc.file_size_bytes / 1024)} KB)</td>
+                      <td>
+                        {doc.file_type === 'xlsx' || doc.file_type === 'xls' ? `${doc.page_count} sht` : `${doc.page_count} pg`}
+                        ({Math.round(doc.file_size_bytes / 1024)} KB)
+                      </td>
                       <td>
                         <CBadge variant="emerald">Ready</CBadge>
                       </td>
@@ -1273,7 +1290,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
               <input
                 type="file"
                 id="file-input"
-                accept=".pdf,.png,.jpg,.jpeg,.webp,.txt"
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.doc,.xlsx,.xls,.csv,.txt,.md"
                 on:change={(e) => handleFileUpload(e.target.files[0])}
                 disabled={isUploading}
               />
@@ -1292,7 +1309,15 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                   >
                 </div>
                 <h3>Drag & Drop documents here</h3>
-                <p>Supports PDF, PNG, JPG, Scanned Documents up to 25MB</p>
+                <p>Universal multi-format intake: PDF, Word (DOCX), Excel & CSV (XLSX), Images, & Text up to 25MB</p>
+                <div class="format-badge-row">
+                  <span class="fmt-pill fmt-pdf">PDF</span>
+                  <span class="fmt-pill fmt-word">DOCX</span>
+                  <span class="fmt-pill fmt-excel">XLSX</span>
+                  <span class="fmt-pill fmt-excel">CSV</span>
+                  <span class="fmt-pill fmt-img">PNG / JPG</span>
+                  <span class="fmt-pill fmt-txt">TXT</span>
+                </div>
                 <span class="btn-primary" style="margin-top: 14px;">Browse Files</span>
               </label>
             </div>
@@ -1589,6 +1614,9 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                   ? selectedDoc.insights.document_type
                   : selectedDoc.file_type}</span
               >
+              <span class="fmt-inline-tag {getDocFormatInfo(selectedDoc.file_type).badgeClass}">
+                {getDocFormatInfo(selectedDoc.file_type).label}
+              </span>
               <span class="badge badge-emerald"
                 >Conf: {Math.round((selectedDoc.insights?.confidence_score || 0.95) * 100)}%</span
               >
@@ -1597,7 +1625,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
               <!-- Mode Toggle: Original vs Redacted -->
               <div
                 class="redaction-switch-pill"
-                title="Toggle between original document and PII-redacted sanitized PDF"
+                title="Toggle between original document and PII-redacted sanitized version"
               >
                 <button
                   class="pill-btn {!isRedactedView ? 'active' : ''}"
@@ -6227,5 +6255,88 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     .pii-chips-grid {
       grid-template-columns: 1fr;
     }
+  }
+
+  .format-badge-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .fmt-pill {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.04em;
+    font-family: var(--font-mono);
+  }
+
+  .fmt-pill.fmt-pdf {
+    background: #ffe4e6;
+    color: #e11d48;
+    border: 1px solid #fecdd3;
+  }
+
+  .fmt-pill.fmt-word {
+    background: #e0e7ff;
+    color: #4338ca;
+    border: 1px solid #c7d2fe;
+  }
+
+  .fmt-pill.fmt-excel {
+    background: #d1fae5;
+    color: #047857;
+    border: 1px solid #a7f3d0;
+  }
+
+  .fmt-pill.fmt-img {
+    background: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fde68a;
+  }
+
+  .fmt-pill.fmt-txt {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+  }
+
+  .fmt-inline-tag {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    display: inline-block;
+  }
+
+  .fmt-inline-tag.badge-rose {
+    background: #ffe4e6;
+    color: #be123c;
+  }
+
+  .fmt-inline-tag.badge-emerald {
+    background: #d1fae5;
+    color: #047857;
+  }
+
+  .fmt-inline-tag.badge-indigo {
+    background: #e0e7ff;
+    color: #4338ca;
+  }
+
+  .fmt-inline-tag.badge-amber {
+    background: #fef3c7;
+    color: #b45309;
+  }
+
+  .fmt-inline-tag.badge-slate {
+    background: #f1f5f9;
+    color: #475569;
   }
 </style>

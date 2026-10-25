@@ -29,8 +29,46 @@
   let isLocating = false;
   let currentQueryLabel = '';
 
+  // Multi-format Category & State
+  function getFileCategory(type) {
+    if (!type) return 'pdf';
+    const clean = type.toLowerCase().replace(/^\./, '').trim();
+    if (clean === 'pdf') return 'pdf';
+    if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'].includes(clean)) return 'image';
+    if (['xlsx', 'xls', 'csv'].includes(clean)) return 'spreadsheet';
+    if (['docx', 'doc'].includes(clean)) return 'docx';
+    return 'text';
+  }
+
+  $: fileCategory = getFileCategory(fileType);
+
+  // Multi-format viewer state
+  let imageZoom = 1.0;
+  let imageContainerRef;
+  let gridContainerRef;
+  let readerContainerRef;
+
+  let parsedSheets = [];
+  let activeSheetIndex = 0;
+  let gridFilterQuery = '';
+
+  $: if (fileCategory === 'spreadsheet' && rawText) {
+    parsedSheets = parseSpreadsheetsFromText(rawText);
+    if (activeSheetIndex >= parsedSheets.length) {
+      activeSheetIndex = 0;
+    }
+  }
+
+  $: activeSheet = parsedSheets[activeSheetIndex] || { name: 'Sheet 1', headers: [], rows: [] };
+
+  $: filteredRows = (activeSheet.rows || []).filter((row) => {
+    if (!gridFilterQuery.trim()) return true;
+    const q = gridFilterQuery.toLowerCase();
+    return row.some((cell) => String(cell).toLowerCase().includes(q));
+  });
+
   // React to fileUrl changes
-  $: if (fileUrl && fileType === 'pdf') {
+  $: if (fileUrl && fileCategory === 'pdf') {
     loadPdf(fileUrl);
   }
 
@@ -44,7 +82,7 @@
   }
 
   onMount(() => {
-    if (fileUrl && fileType === 'pdf') {
+    if (fileUrl && fileCategory === 'pdf') {
       loadPdf(fileUrl);
     }
   });
@@ -404,6 +442,50 @@
 
     currentQueryLabel = info.displayLabel;
 
+    if (fileCategory === 'spreadsheet') {
+      const feat = parseSearchFeatures(info);
+      if (feat && parsedSheets.length > 0) {
+        let firstMatchSheet = -1;
+        for (let s = 0; s < parsedSheets.length; s++) {
+          const sheet = parsedSheets[s];
+          const hasMatch = (sheet.rows || []).some((r) =>
+            r.some((cell) => isCellMatched(cell, info))
+          );
+          if (hasMatch) {
+            firstMatchSheet = s;
+            break;
+          }
+        }
+        if (firstMatchSheet !== -1) {
+          activeSheetIndex = firstMatchSheet;
+          locateStatus = `Found in ${parsedSheets[firstMatchSheet].name}`;
+          await tick();
+          scrollToFirstMatchedCell();
+        } else {
+          locateStatus = 'Not found in grid';
+        }
+      }
+      return;
+    }
+
+    if (fileCategory === 'image') {
+      locateStatus = 'Available in OCR';
+      return;
+    }
+
+    if (fileCategory === 'docx' || fileCategory === 'text') {
+      const feat = parseSearchFeatures(info);
+      if (feat && rawText) {
+        const lineMatch = findBestLineMatch(rawText, feat);
+        if (lineMatch) {
+          locateStatus = `Section match`;
+        }
+      }
+      await tick();
+      scrollToHighlightedText();
+      return;
+    }
+
     if (viewMode === 'text') {
       const feat = parseSearchFeatures(info);
       if (feat && rawText) {
@@ -417,7 +499,7 @@
       return;
     }
 
-    // In Canvas Mode: Score all pages to find which page actually contains the target finding
+    // In Canvas Mode for PDF: Score all pages to find which page actually contains the target finding
     if (!pdfDoc) return;
     isLocating = true;
     locateStatus = `Locating "${currentQueryLabel}"...`;
@@ -822,12 +904,13 @@
 
   function scrollToHighlightedText() {
     setTimeout(() => {
-      if (!textContainerRef) return;
+      const container = readerContainerRef || textContainerRef;
+      if (!container) return;
       const target =
-        textContainerRef.querySelector('#focal-target-match') ||
-        textContainerRef.querySelector('.focal-target') ||
-        textContainerRef.querySelector('.focal-line-wrapper') ||
-        textContainerRef.querySelector('.active-highlight');
+        container.querySelector('#focal-target-match') ||
+        container.querySelector('.focal-target') ||
+        container.querySelector('.focal-line-wrapper') ||
+        container.querySelector('.active-highlight');
       if (target) {
         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
@@ -982,6 +1065,279 @@
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   }
+
+  function parseSpreadsheetsFromText(text) {
+    if (!text || typeof text !== 'string') return [];
+    const sheetMarkerRegex = /---\s*\[Sheet:\s*([^\]]+)\]\s*---/gi;
+    const matches = [...text.matchAll(sheetMarkerRegex)];
+
+    if (matches.length === 0) {
+      const table = parseMarkdownTable(text);
+      return [
+        {
+          name: 'Sheet 1',
+          headers: table.headers,
+          rows: table.rows,
+        },
+      ];
+    }
+
+    const sheets = [];
+    for (let i = 0; i < matches.length; i++) {
+      const match = matches[i];
+      const name = match[1].trim();
+      const startIndex = match.index + match[0].length;
+      const endIndex = i + 1 < matches.length ? matches[i + 1].index : text.length;
+      const sheetChunk = text.slice(startIndex, endIndex);
+      const table = parseMarkdownTable(sheetChunk);
+      sheets.push({
+        name,
+        headers: table.headers,
+        rows: table.rows,
+      });
+    }
+    return sheets;
+  }
+
+  function parseMarkdownTable(chunk) {
+    if (!chunk) return { headers: [], rows: [] };
+    const lines = chunk
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const tableLines = lines.filter((l) => l.startsWith('|') && l.endsWith('|'));
+
+    if (tableLines.length === 0) {
+      const csvLines = lines.filter((l) => !l.startsWith('---'));
+      if (csvLines.length > 0) {
+        const firstLine = csvLines[0]
+          .split(',')
+          .map((c) => c.trim().replace(/^["']|["']$/g, ''));
+        const rows = csvLines
+          .slice(1)
+          .map((l) => l.split(',').map((c) => c.trim().replace(/^["']|["']$/g, '')));
+        return { headers: firstLine, rows };
+      }
+      return { headers: ['Content'], rows: lines.map((l) => [l]) };
+    }
+
+    const headers = tableLines[0]
+      .slice(1, -1)
+      .split('|')
+      .map((c) => c.trim());
+
+    const dataRows = [];
+    for (let i = 1; i < tableLines.length; i++) {
+      const rowStr = tableLines[i];
+      if (/^\|\s*[-:]+[-|\s:]*\|$/.test(rowStr)) {
+        continue;
+      }
+      const cells = rowStr
+        .slice(1, -1)
+        .split('|')
+        .map((c) => c.trim());
+      dataRows.push(cells);
+    }
+
+    return { headers, rows: dataRows };
+  }
+
+  function isCellMatched(cellVal, queryInput) {
+    if (!queryInput || cellVal === undefined || cellVal === null) return false;
+    const strVal = String(cellVal).trim();
+    if (!strVal) return false;
+
+    const info = extractQueryInfo(queryInput);
+    if (!info) return false;
+
+    const feat = parseSearchFeatures(info);
+    if (!feat) return false;
+
+    const valLower = strVal.toLowerCase();
+    const valNorm = valLower.replace(/,/g, '');
+
+    if (
+      feat.clean.length >= 2 &&
+      (valLower.includes(feat.clean) || valNorm.includes(feat.cleanWithoutCurrency))
+    ) {
+      return true;
+    }
+
+    for (const da of feat.dateAliases) {
+      if (valLower.includes(da.toLowerCase())) return true;
+    }
+
+    for (const num of feat.normalizedNums) {
+      if (num.length >= 2 && (valLower.includes(num) || valNorm.includes(num))) {
+        return true;
+      }
+    }
+
+    for (const tok of feat.tokens) {
+      if (tok.length >= 3 && (valLower.includes(tok) || valNorm.includes(tok))) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function scrollToFirstMatchedCell() {
+    setTimeout(() => {
+      if (!gridContainerRef) return;
+      const target = gridContainerRef.querySelector('.cell-matched');
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+      }
+    }, 100);
+  }
+
+  function renderFormattedDocument(text, queryInput) {
+    if (!text) {
+      return '<div class="empty-doc-note">No text extracted for this document.</div>';
+    }
+
+    const info = extractQueryInfo(queryInput);
+    const feat =
+      info && info.rawText && info.rawText.trim().length >= 2 ? parseSearchFeatures(info) : null;
+    const bestMatch = feat ? findBestLineMatch(text, feat) : null;
+    const bestIdx = bestMatch ? bestMatch.lineIndex : -1;
+
+    const secondaryTerms = feat
+      ? [...feat.dateAliases, ...feat.normalizedNums.filter((n) => n.length >= 3)]
+      : [];
+    if (feat && feat.clean.length >= 6) {
+      secondaryTerms.unshift(feat.clean);
+    }
+    const secondaryRegex =
+      secondaryTerms.length > 0
+        ? new RegExp(
+            `(${secondaryTerms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`,
+            'gi',
+          )
+        : null;
+
+    function applyLineHighlight(line, idx) {
+      const escaped = escapeHtml(line);
+      if (idx === bestIdx && feat) {
+        const badgeLabel = escapeHtml(info.displayLabel || 'Match');
+        if (feat.clean.length >= 4) {
+          const escClean = feat.clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const cleanRe = new RegExp(`(${escClean})`, 'i');
+          if (cleanRe.test(escaped)) {
+            return (
+              `<div class="focal-line-wrapper">` +
+              escaped.replace(
+                cleanRe,
+                `<mark id="focal-target-match" class="active-highlight focal-target">$1<span class="focal-target-badge">📍 ${badgeLabel}</span></mark>`,
+              ) +
+              `</div>`
+            );
+          }
+        }
+        for (const tok of feat.tokens) {
+          const escTok = tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const tokRe = new RegExp(`(${escTok})`, 'i');
+          if (tokRe.test(escaped)) {
+            return (
+              `<div class="focal-line-wrapper">` +
+              escaped.replace(
+                tokRe,
+                `<mark id="focal-target-match" class="active-highlight focal-target">$1<span class="focal-target-badge">📍 ${badgeLabel}</span></mark>`,
+              ) +
+              `</div>`
+            );
+          }
+        }
+        return `<div class="focal-line-wrapper"><mark id="focal-target-match" class="active-highlight focal-target">${escaped}<span class="focal-target-badge">📍 ${badgeLabel}</span></mark></div>`;
+      }
+      if (secondaryRegex && secondaryRegex.test(escaped)) {
+        return escaped.replace(secondaryRegex, '<mark class="secondary-match">$1</mark>');
+      }
+      return escaped;
+    }
+
+    const lines = text.split('\n');
+    const out = [];
+    let inTable = false;
+    let tableLines = [];
+    let inList = false;
+    let listLines = [];
+
+    function flushTable() {
+      if (tableLines.length === 0) return;
+      const t = parseMarkdownTable(tableLines.join('\n'));
+      let html = '<div class="reader-table-wrap"><table class="reader-table"><thead><tr>';
+      for (const h of t.headers) {
+        html += `<th>${escapeHtml(h)}</th>`;
+      }
+      html += '</tr></thead><tbody>';
+      for (const row of t.rows) {
+        html += '<tr>';
+        for (const c of row) {
+          const isM = isCellMatched(c, queryInput);
+          html += `<td class="${isM ? 'cell-matched' : ''}">${isM ? '📍 ' : ''}${escapeHtml(c)}</td>`;
+        }
+        html += '</tr>';
+      }
+      html += '</tbody></table></div>';
+      out.push(html);
+      tableLines = [];
+      inTable = false;
+    }
+
+    function flushList() {
+      if (listLines.length === 0) return;
+      out.push('<ul class="reader-ul">' + listLines.join('') + '</ul>');
+      listLines = [];
+      inList = false;
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+
+      if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+        if (inList) flushList();
+        inTable = true;
+        tableLines.push(trimmed);
+        continue;
+      } else if (inTable) {
+        flushTable();
+      }
+
+      if (/^[-*•]\s+/.test(trimmed)) {
+        inList = true;
+        const itemContent = trimmed.replace(/^[-*•]\s+/, '');
+        listLines.push(`<li class="reader-li">${applyLineHighlight(itemContent, i)}</li>`);
+        continue;
+      } else if (inList) {
+        flushList();
+      }
+
+      if (trimmed.startsWith('--- [Page')) {
+        out.push(`<div class="reader-page-divider"><span>${escapeHtml(trimmed)}</span></div>`);
+        continue;
+      }
+
+      if (trimmed.startsWith('### ')) {
+        out.push(`<h3 class="reader-h3">${applyLineHighlight(trimmed.slice(4), i)}</h3>`);
+      } else if (trimmed.startsWith('## ')) {
+        out.push(`<h2 class="reader-h2">${applyLineHighlight(trimmed.slice(3), i)}</h2>`);
+      } else if (trimmed.startsWith('# ')) {
+        out.push(`<h1 class="reader-h1">${applyLineHighlight(trimmed.slice(2), i)}</h1>`);
+      } else if (!trimmed) {
+        continue;
+      } else {
+        out.push(`<p class="reader-p">${applyLineHighlight(line, i)}</p>`);
+      }
+    }
+
+    if (inTable) flushTable();
+    if (inList) flushList();
+
+    return out.join('\n');
+  }
 </script>
 
 <div class="pdf-viewer-container">
@@ -995,12 +1351,27 @@
           class="mode-btn {viewMode === 'canvas' ? 'active' : ''}"
           on:click={() => {
             viewMode = 'canvas';
-            setTimeout(() => renderPage(currentPage), 50);
+            if (fileCategory === 'pdf') {
+              setTimeout(() => renderPage(currentPage), 50);
+            } else if (fileCategory === 'spreadsheet' && highlightQuery) {
+              setTimeout(() => scrollToFirstMatchedCell(), 80);
+            } else if ((fileCategory === 'docx' || fileCategory === 'text') && highlightQuery) {
+              setTimeout(() => scrollToHighlightedText(), 80);
+            }
           }}
-          disabled={fileType !== 'pdf'}
-          title="Render actual visual PDF canvas with page navigation"
+          title="Switch to visual representation"
         >
-          Visual Canvas
+          {#if fileCategory === 'pdf'}
+            Visual Canvas
+          {:else if fileCategory === 'image'}
+            Visual Scan
+          {:else if fileCategory === 'spreadsheet'}
+            Interactive Grid
+          {:else if fileCategory === 'docx'}
+            Document Reader
+          {:else}
+            Formatted View
+          {/if}
         </button>
         <button
           type="button"
@@ -1012,9 +1383,17 @@
               setTimeout(() => scrollToHighlightedText(), 80);
             }
           }}
-          title="Extracted text with glowing highlight markers"
+          title="Switch to extracted text and glowing highlight markers"
         >
-          Text & Highlights
+          {#if fileCategory === 'image'}
+            OCR Text & Intel
+          {:else if fileCategory === 'spreadsheet'}
+            Raw Table Data
+          {:else if fileCategory === 'docx'}
+            Raw Text
+          {:else}
+            Text & Highlights
+          {/if}
         </button>
       </div>
 
@@ -1042,41 +1421,94 @@
       {/if}
     </div>
 
-    <!-- Canvas Controls (Page / Zoom) -->
-    {#if viewMode === 'canvas' && fileType === 'pdf'}
-      <div class="toolbar-right">
-        <div class="page-controls">
-          <button
-            type="button"
-            class="tool-btn"
-            on:click={() => changePage(-1)}
-            disabled={currentPage <= 1}
-            title="Previous page"
-          >
-            <CIcon name="chevron-left" size={12} />
-          </button>
-          <span class="page-indicator">Page {currentPage} of {totalPages}</span>
-          <button
-            type="button"
-            class="tool-btn"
-            on:click={() => changePage(1)}
-            disabled={currentPage >= totalPages}
-            title="Next page"
-          >
-            <CIcon name="chevron-right" size={12} />
-          </button>
-        </div>
+    <!-- Mode-specific Toolbar Controls -->
+    {#if viewMode === 'canvas'}
+      {#if fileCategory === 'pdf'}
+        <div class="toolbar-right">
+          <div class="page-controls">
+            <button
+              type="button"
+              class="tool-btn"
+              on:click={() => changePage(-1)}
+              disabled={currentPage <= 1}
+              title="Previous page"
+            >
+              <CIcon name="chevron-left" size={12} />
+            </button>
+            <span class="page-indicator">Page {currentPage} of {totalPages}</span>
+            <button
+              type="button"
+              class="tool-btn"
+              on:click={() => changePage(1)}
+              disabled={currentPage >= totalPages}
+              title="Next page"
+            >
+              <CIcon name="chevron-right" size={12} />
+            </button>
+          </div>
 
-        <div class="zoom-controls">
-          <button type="button" class="tool-btn" on:click={() => changeZoom(-0.25)} title="Zoom out">
-            <CIcon name="minus" size={12} />
-          </button>
-          <span class="zoom-indicator">{Math.round(zoomScale * 100)}%</span>
-          <button type="button" class="tool-btn" on:click={() => changeZoom(0.25)} title="Zoom in">
-            <CIcon name="plus" size={12} />
-          </button>
+          <div class="zoom-controls">
+            <button type="button" class="tool-btn" on:click={() => changeZoom(-0.25)} title="Zoom out">
+              <CIcon name="minus" size={12} />
+            </button>
+            <span class="zoom-indicator">{Math.round(zoomScale * 100)}%</span>
+            <button type="button" class="tool-btn" on:click={() => changeZoom(0.25)} title="Zoom in">
+              <CIcon name="plus" size={12} />
+            </button>
+          </div>
         </div>
-      </div>
+      {:else if fileCategory === 'image'}
+        <div class="toolbar-right">
+          <div class="zoom-controls">
+            <button
+              type="button"
+              class="tool-btn"
+              on:click={() => (imageZoom = Math.max(0.4, Number((imageZoom - 0.25).toFixed(2))))}
+              title="Zoom out"
+            >
+              <CIcon name="minus" size={12} />
+            </button>
+            <button
+              type="button"
+              class="tool-btn reset-zoom-btn"
+              on:click={() => (imageZoom = 1.0)}
+              title="Reset Zoom to 100%"
+            >
+              {Math.round(imageZoom * 100)}%
+            </button>
+            <button
+              type="button"
+              class="tool-btn"
+              on:click={() => (imageZoom = Math.min(3.0, Number((imageZoom + 0.25).toFixed(2))))}
+              title="Zoom in"
+            >
+              <CIcon name="plus" size={12} />
+            </button>
+          </div>
+        </div>
+      {:else if fileCategory === 'spreadsheet'}
+        <div class="toolbar-right">
+          <div class="meta-stats-chip">
+            <span class="chip-dot-green"></span>
+            <span>{activeSheet.rows.length} rows</span>
+            <span class="chip-divider">•</span>
+            <span>{activeSheet.headers.length} columns</span>
+            {#if parsedSheets.length > 1}
+              <span class="chip-divider">•</span>
+              <span>Sheet {activeSheetIndex + 1} of {parsedSheets.length}</span>
+            {/if}
+          </div>
+        </div>
+      {:else if fileCategory === 'docx' || fileCategory === 'text'}
+        <div class="toolbar-right">
+          <div class="meta-stats-chip">
+            <span class="chip-dot-blue"></span>
+            <span>Formatted Reader</span>
+            <span class="chip-divider">•</span>
+            <span>{rawText ? rawText.split('\n').filter(Boolean).length : 0} lines</span>
+          </div>
+        </div>
+      {/if}
     {/if}
   </div>
 
@@ -1089,30 +1521,127 @@
       </div>
     {/if}
 
-    <!-- MODE 1: VISUAL CANVAS WITH REAL-TIME HIGHLIGHT BOXES -->
-    {#if viewMode === 'canvas' && fileType === 'pdf'}
-      <div class="canvas-scroll-wrapper" bind:this={canvasContainerRef}>
-        <div class="canvas-relative-container">
-          <canvas bind:this={canvasRef} class="pdf-canvas"></canvas>
+    <!-- MODE 1: VISUAL CANVAS / SPECIALIZED FORMAT VIEWERS -->
+    {#if viewMode === 'canvas'}
+      {#if fileCategory === 'pdf'}
+        <!-- PDF Visual Canvas with Real-time Bounding Box Highlights -->
+        <div class="canvas-scroll-wrapper" bind:this={canvasContainerRef}>
+          <div class="canvas-relative-container">
+            <canvas bind:this={canvasRef} class="pdf-canvas"></canvas>
 
-          <!-- Bounding Box Highlights rendered directly on top of the canvas -->
-          {#each highlightBoxes as box}
-            <div
-              class="canvas-bounding-box"
-              style="left: {box.left}px; top: {box.top}px; width: {box.width}px; height: {box.height}px;"
-            >
-              <span class="box-locator-badge">📍 {box.label || 'Match'}</span>
-            </div>
-          {/each}
+            {#each highlightBoxes as box}
+              <div
+                class="canvas-bounding-box"
+                style="left: {box.left}px; top: {box.top}px; width: {box.width}px; height: {box.height}px;"
+              >
+                <span class="box-locator-badge">📍 {box.label || 'Match'}</span>
+              </div>
+            {/each}
+          </div>
         </div>
-      </div>
-    {:else if ['png', 'jpg', 'jpeg', 'webp'].includes(fileType)}
-      <!-- Image Document Viewer -->
-      <div class="image-viewer-wrapper">
-        <img src={fileUrl} alt="Document Scan" class="document-img" />
-      </div>
+      {:else if fileCategory === 'image'}
+        <!-- Image Document Viewer with Zoom and Locator Pin -->
+        <div class="image-viewer-wrapper" bind:this={imageContainerRef}>
+          <div class="image-zoom-box" style="transform: scale({imageZoom}); transform-origin: top center;">
+            <img src={fileUrl} alt="Document Scan" class="document-img" />
+            {#if highlightQuery}
+              <div class="image-locator-overlay">
+                <span class="chip-dot"></span>
+                <span>Entity Located: <strong>"{currentQueryLabel}"</strong></span>
+                <button
+                  type="button"
+                  class="ocr-jump-pill"
+                  on:click={() => {
+                    viewMode = 'text';
+                    setTimeout(() => scrollToHighlightedText(), 80);
+                  }}
+                >
+                  View OCR Text ↗
+                </button>
+              </div>
+            {/if}
+          </div>
+        </div>
+      {:else if fileCategory === 'spreadsheet'}
+        <!-- Spreadsheet Interactive Data Grid -->
+        <div class="spreadsheet-container">
+          {#if parsedSheets.length > 1}
+            <div class="spreadsheet-sheet-tabs">
+              {#each parsedSheets as sheet, sIdx}
+                <button
+                  type="button"
+                  class="sheet-tab-btn {activeSheetIndex === sIdx ? 'active' : ''}"
+                  on:click={() => (activeSheetIndex = sIdx)}
+                >
+                  <CIcon name="document" size={12} />
+                  <span>{sheet.name}</span>
+                  <span class="sheet-count-pill">{sheet.rows.length}</span>
+                </button>
+              {/each}
+            </div>
+          {/if}
+
+          <div class="spreadsheet-filter-bar">
+            <div class="grid-filter-wrap">
+              <CIcon name="search" size={13} color="#666" />
+              <input
+                type="text"
+                placeholder="Filter table rows..."
+                bind:value={gridFilterQuery}
+                class="grid-filter-input"
+              />
+              {#if gridFilterQuery}
+                <button type="button" class="clear-filter-btn" on:click={() => (gridFilterQuery = '')}>✕</button>
+              {/if}
+            </div>
+            <div class="grid-filter-stats">
+              Showing {filteredRows.length} of {activeSheet.rows.length} rows
+            </div>
+          </div>
+
+          <div class="spreadsheet-grid-scroll" bind:this={gridContainerRef}>
+            {#if activeSheet.headers.length === 0 && activeSheet.rows.length === 0}
+              <div class="empty-sheet-notice">No structured table data detected in spreadsheet.</div>
+            {:else}
+              <table class="spreadsheet-table">
+                <thead>
+                  <tr>
+                    <th class="row-num-th">#</th>
+                    {#each activeSheet.headers as header}
+                      <th>{header}</th>
+                    {/each}
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each filteredRows as row, rIdx}
+                    <tr>
+                      <td class="row-num-td">{rIdx + 1}</td>
+                      {#each row as cell}
+                        {@const isMatched = isCellMatched(cell, highlightQuery)}
+                        <td class="data-cell {isMatched ? 'cell-matched' : ''}">
+                          {#if isMatched}
+                            <span class="cell-locator-badge">📍 Match</span>
+                          {/if}
+                          <span>{cell}</span>
+                        </td>
+                      {/each}
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            {/if}
+          </div>
+        </div>
+      {:else}
+        <!-- Word DOCX / Text Formatted Reader -->
+        <div class="formatted-reader-wrapper" bind:this={readerContainerRef}>
+          <div class="formatted-doc-sheet">
+            {@html renderFormattedDocument(rawText, highlightQuery)}
+          </div>
+        </div>
+      {/if}
     {:else}
-      <!-- MODE 2: INTERACTIVE TEXT & GLOWING HIGHLIGHTS -->
+      <!-- MODE 2: INTERACTIVE RAW TEXT & GLOWING HIGHLIGHTS -->
       <div class="text-viewer-wrapper" bind:this={textContainerRef}>
         <div class="text-content">
           {@html formatHighlightedText(rawText, highlightQuery)}
@@ -1351,20 +1880,421 @@
     gap: 3px;
   }
 
+  .reset-zoom-btn {
+    width: auto !important;
+    padding: 0 8px !important;
+    font-size: 0.72rem !important;
+    font-family: var(--font-mono);
+  }
+
+  .meta-stats-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #f6f6f6;
+    border: 1px solid #e5e5e5;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: #444444;
+  }
+
+  .chip-dot-green {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+  }
+
+  .chip-dot-blue {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #6366f1;
+  }
+
+  .chip-divider {
+    color: #cccccc;
+    font-size: 0.7rem;
+  }
+
+  /* IMAGE DOCUMENT VIEWER */
   .image-viewer-wrapper {
     flex: 1;
     overflow: auto;
-    padding: 20px;
+    padding: 32px 20px;
     display: flex;
     justify-content: center;
+    align-items: flex-start;
+    background: #f0f0f0;
+  }
+
+  .image-zoom-box {
+    position: relative;
+    display: inline-block;
+    transition: transform 0.15s ease-out;
   }
 
   .document-img {
     max-width: 100%;
     height: auto;
     border-radius: 4px;
+    border: 1px solid #dcdcdc;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+    display: block;
+  }
+
+  .image-locator-overlay {
+    position: sticky;
+    bottom: 20px;
+    left: 50%;
+    margin: 16px auto 0 auto;
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: #111111;
+    color: #ffffff;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    z-index: 10;
+    white-space: nowrap;
+  }
+
+  .ocr-jump-pill {
+    background: #ca8a04;
+    color: #111111;
+    border: none;
+    font-weight: 700;
+    font-size: 0.72rem;
+    padding: 3px 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .ocr-jump-pill:hover {
+    background: #fde047;
+  }
+
+  /* SPREADSHEET INTERACTIVE DATA GRID */
+  .spreadsheet-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #ffffff;
+    overflow: hidden;
+  }
+
+  .spreadsheet-sheet-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px 16px;
+    background: #f8f8f8;
+    border-bottom: 1px solid #e5e5e5;
+    overflow-x: auto;
+  }
+
+  .sheet-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 4px;
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #444444;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .sheet-tab-btn.active {
+    background: #111111;
+    color: #ffffff;
+    border-color: #111111;
+  }
+
+  .sheet-count-pill {
+    font-size: 0.68rem;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.08);
+  }
+
+  .sheet-tab-btn.active .sheet-count-pill {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+  }
+
+  .spreadsheet-filter-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    background: #ffffff;
+    border-bottom: 1px solid #f0f0f0;
+    gap: 12px;
+  }
+
+  .grid-filter-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #f6f6f6;
     border: 1px solid #e5e5e5;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    padding: 4px 10px;
+    width: 240px;
+  }
+
+  .grid-filter-input {
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 0.78rem;
+    color: #111111;
+    width: 100%;
+  }
+
+  .clear-filter-btn {
+    background: transparent;
+    border: none;
+    color: #888888;
+    cursor: pointer;
+    font-size: 0.72rem;
+    padding: 0 2px;
+  }
+
+  .grid-filter-stats {
+    font-size: 0.75rem;
+    color: #666666;
+    font-family: var(--font-mono);
+  }
+
+  .spreadsheet-grid-scroll {
+    flex: 1;
+    overflow: auto;
+    padding: 0;
+  }
+
+  .empty-sheet-notice {
+    padding: 40px;
+    text-align: center;
+    color: #888888;
+    font-style: italic;
+  }
+
+  .spreadsheet-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    font-family: var(--font-mono);
+  }
+
+  .spreadsheet-table th {
+    position: sticky;
+    top: 0;
+    background: #1a1a1a;
+    color: #f0f0f0;
+    padding: 9px 14px;
+    text-align: left;
+    font-weight: 600;
+    border-right: 1px solid #333333;
+    border-bottom: 2px solid #000000;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    letter-spacing: 0.03em;
+    z-index: 2;
+  }
+
+  .row-num-th {
+    width: 44px;
+    text-align: center !important;
+    background: #111111 !important;
+    color: #888888 !important;
+  }
+
+  .row-num-td {
+    width: 44px;
+    text-align: center;
+    background: #fafafa;
+    color: #888888;
+    border-right: 1px solid #e5e5e5;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 0.72rem;
+    user-select: none;
+  }
+
+  .spreadsheet-table td {
+    padding: 8px 14px;
+    border-right: 1px solid #f0f0f0;
+    border-bottom: 1px solid #f0f0f0;
+    white-space: nowrap;
+    color: #222222;
+    position: relative;
+  }
+
+  .spreadsheet-table tr:hover td:not(.cell-matched) {
+    background: #fbfbfb;
+  }
+
+  .data-cell.cell-matched {
+    background: #fef08a !important;
+    color: #111111 !important;
+    border: 1.5px solid #ca8a04 !important;
+    font-weight: 700 !important;
+    box-shadow: 0 0 10px rgba(202, 138, 4, 0.35);
+  }
+
+  .cell-locator-badge {
+    display: inline-block;
+    margin-right: 4px;
+    font-size: 0.75rem;
+  }
+
+  /* FORMATTED DOCUMENT READER */
+  .formatted-reader-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px 20px;
+    display: flex;
+    justify-content: center;
+    background: #f6f6f6;
+  }
+
+  .formatted-doc-sheet {
+    width: 100%;
+    max-width: 820px;
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 4px;
+    padding: 48px 56px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    color: #1a1a1a;
+    font-family: var(--font-sans, "Inter", sans-serif);
+    line-height: 1.7;
+  }
+
+  :global(.empty-doc-note) {
+    color: #888888;
+    font-style: italic;
+    text-align: center;
+    padding: 40px;
+  }
+
+  :global(.reader-h1) {
+    font-family: var(--font-heading, "Playfair Display", Georgia, serif);
+    font-size: 1.85rem;
+    font-weight: 700;
+    color: #111111;
+    margin: 0 0 18px 0;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    border-bottom: 1px solid #e5e5e5;
+    padding-bottom: 12px;
+  }
+
+  :global(.reader-h2) {
+    font-family: var(--font-heading, "Playfair Display", Georgia, serif);
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #222222;
+    margin: 28px 0 12px 0;
+    letter-spacing: -0.01em;
+  }
+
+  :global(.reader-h3) {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #333333;
+    margin: 20px 0 8px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  :global(.reader-p) {
+    margin: 0 0 14px 0;
+    font-size: 0.92rem;
+    color: #333333;
+  }
+
+  :global(.reader-ul) {
+    margin: 0 0 16px 20px;
+    padding: 0;
+    list-style-type: disc;
+  }
+
+  :global(.reader-li) {
+    margin-bottom: 6px;
+    font-size: 0.9rem;
+    color: #333333;
+  }
+
+  :global(.reader-page-divider) {
+    text-align: center;
+    margin: 32px 0 24px 0;
+    border-top: 1px dashed #d0d0d0;
+    position: relative;
+  }
+
+  :global(.reader-page-divider span) {
+    position: relative;
+    top: -10px;
+    background: #ffffff;
+    padding: 0 12px;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888888;
+    font-weight: 600;
+  }
+
+  :global(.reader-table-wrap) {
+    overflow-x: auto;
+    margin: 20px 0;
+    border: 1px solid #e5e5e5;
+    border-radius: 4px;
+  }
+
+  :global(.reader-table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+
+  :global(.reader-table th) {
+    background: #f8f8f8;
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #111111;
+    border-bottom: 1px solid #e0e0e0;
+    border-right: 1px solid #f0f0f0;
+  }
+
+  :global(.reader-table td) {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    border-right: 1px solid #f0f0f0;
+    color: #333333;
+  }
+
+  :global(.reader-table tr:nth-child(even) td) {
+    background: #fafafa;
+  }
+
+  :global(.reader-table td.cell-matched) {
+    background: #fef08a !important;
+    color: #111111 !important;
+    font-weight: 700;
+    border: 1px solid #ca8a04;
   }
 
   .text-viewer-wrapper {
