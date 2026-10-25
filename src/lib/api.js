@@ -256,7 +256,10 @@ export async function semanticSearch(query, options = {}) {
 
 export async function getDashboardStats() {
   const res = await authFetch('/dashboard/stats');
-  if (!res.ok) throw new Error('Failed to load dashboard metrics');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || 'Failed to load dashboard metrics');
+  }
   return await res.json();
 }
 
