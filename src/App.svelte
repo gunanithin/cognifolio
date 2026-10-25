@@ -21,8 +21,29 @@
     startGuestSession,
     logout,
   } from './lib/api.js';
-  import PdfViewer from './lib/components/PdfViewer.svelte';
   import AuthModal from './lib/components/AuthModal.svelte';
+
+  // Dynamic Lazy-Loaded PDF Viewer Component
+  let PdfViewerComponent = null;
+  let isPdfViewerLoading = false;
+
+  async function loadPdfViewer() {
+    if (!PdfViewerComponent && !isPdfViewerLoading) {
+      isPdfViewerLoading = true;
+      try {
+        const mod = await import('./lib/components/PdfViewer.svelte');
+        PdfViewerComponent = mod.default;
+      } catch (err) {
+        console.error('Failed to load PdfViewer:', err);
+      } finally {
+        isPdfViewerLoading = false;
+      }
+    }
+  }
+
+  $: if (activeTab === 'viewer') {
+    loadPdfViewer();
+  }
 
   // Navigation State
   let activeTab = 'dashboard'; // 'dashboard' | 'upload' | 'search' | 'viewer' | 'privacy' | 'compare'
@@ -1458,14 +1479,22 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
           <div class="split-container">
             <!-- Left Panel: Interactive Visual PDF Canvas & Highlighting Viewer -->
             <div class="glass-card panel-left-viewer">
-              <PdfViewer
-                fileUrl={isRedactedView
-                  ? getRedactedFileUrl(selectedDoc.id)
-                  : getDocumentFileUrl(selectedDoc.id)}
-                fileType={selectedDoc.file_type}
-                rawText={selectedDoc.insights?.raw_extracted_text || ''}
-                bind:highlightQuery={activeHighlightTerm}
-              />
+              {#if PdfViewerComponent}
+                <svelte:component
+                  this={PdfViewerComponent}
+                  fileUrl={isRedactedView
+                    ? getRedactedFileUrl(selectedDoc.id)
+                    : getDocumentFileUrl(selectedDoc.id)}
+                  fileType={selectedDoc.file_type}
+                  rawText={selectedDoc.insights?.raw_extracted_text || ''}
+                  bind:highlightQuery={activeHighlightTerm}
+                />
+              {:else}
+                <div class="viewer-lazy-loading">
+                  <span class="pulse-indicator"></span>
+                  <span>Loading Document Intelligence Canvas...</span>
+                </div>
+              {/if}
             </div>
 
             <!-- Right Panel: AI Extracted Intel with 1-Click Interactive Locate Buttons -->
@@ -3693,6 +3722,17 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     flex-direction: column;
     overflow: hidden;
     padding: 0;
+  }
+
+  .viewer-lazy-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    height: 100%;
+    min-height: 400px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
   }
 
   .panel-right {
