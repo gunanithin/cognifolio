@@ -137,3 +137,21 @@ export async function chatWithDocument(docId, message, conversationHistory = [])
   }
   return await res.json();
 }
+
+export async function compareDocuments(baseDocumentId, targetDocumentId, focusAspects = null) {
+  const payload = {
+    base_document_id: baseDocumentId,
+    target_document_id: targetDocumentId,
+    ...(focusAspects && focusAspects.length ? { focus_aspects: focusAspects } : {}),
+  };
+  const res = await fetch(`${API_BASE}/documents/compare`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to compare documents');
+  }
+  return await res.json();
+}

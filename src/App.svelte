@@ -15,11 +15,12 @@
     getDocumentFileUrl,
     getRedactedFileUrl,
     chatWithDocument,
+    compareDocuments,
   } from './lib/api.js';
   import PdfViewer from './lib/components/PdfViewer.svelte';
 
   // Navigation State
-  let activeTab = 'dashboard'; // 'dashboard' | 'upload' | 'search' | 'viewer' | 'privacy'
+  let activeTab = 'dashboard'; // 'dashboard' | 'upload' | 'search' | 'viewer' | 'privacy' | 'compare'
 
   // Global Data
   let health = { status: 'checking...', gemini_model: '', qdrant_location: '' };
@@ -459,6 +460,136 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
       errorMsg = err.message;
     }
   }
+
+  // Multi-Document Comparison & Redline Diff State
+  let compareBaseDocId = '';
+  let compareTargetDocId = '';
+  let isComparing = false;
+  let comparisonResult = null;
+  let compareFilterCategory = 'all'; // 'all' | 'clause' | 'financial' | 'liability' | 'term'
+  let compareFilterType = 'all'; // 'all' | 'added' | 'removed' | 'modified'
+  let compareSearch = '';
+  let copiedReport = false;
+
+  function initCompareDefaults() {
+    if (documents.length > 0 && !compareBaseDocId) {
+      compareBaseDocId = documents[0].id;
+    }
+    if (documents.length > 1 && !compareTargetDocId) {
+      const baseDoc = documents.find((d) => d.id === compareBaseDocId);
+      const matchingTypeDoc = documents.find(
+        (d) =>
+          d.id !== compareBaseDocId &&
+          d.insights?.document_type === baseDoc?.insights?.document_type,
+      );
+      compareTargetDocId = matchingTypeDoc ? matchingTypeDoc.id : documents[1].id;
+    }
+  }
+
+  function swapCompareDocs() {
+    const temp = compareBaseDocId;
+    compareBaseDocId = compareTargetDocId;
+    compareTargetDocId = temp;
+    if (comparisonResult) {
+      handleRunComparison();
+    }
+  }
+
+  function openCompareWithDoc(docId) {
+    compareBaseDocId = docId;
+    const baseDoc = documents.find((d) => d.id === docId);
+    const targetDoc = documents.find(
+      (d) =>
+        d.id !== docId && (d.insights?.document_type === baseDoc?.insights?.document_type || true),
+    );
+    if (targetDoc) {
+      compareTargetDocId = targetDoc.id;
+    }
+    activeTab = 'compare';
+    if (compareBaseDocId && compareTargetDocId && compareBaseDocId !== compareTargetDocId) {
+      handleRunComparison();
+    }
+  }
+
+  async function handleRunComparison() {
+    if (!compareBaseDocId || !compareTargetDocId) {
+      errorMsg = 'Please select both Document A and Document B to compare.';
+      return;
+    }
+    if (compareBaseDocId === compareTargetDocId) {
+      errorMsg = 'Please select two different documents to perform redline comparison.';
+      return;
+    }
+    isComparing = true;
+    errorMsg = '';
+    try {
+      comparisonResult = await compareDocuments(compareBaseDocId, compareTargetDocId);
+      successMsg = `Redline analysis completed: ${comparisonResult.diffs.length} material differences detected.`;
+      setTimeout(() => (successMsg = ''), 4000);
+    } catch (e) {
+      errorMsg = 'Comparison failed: ' + e.message;
+    } finally {
+      isComparing = false;
+    }
+  }
+
+  function copyComparisonReport() {
+    if (!comparisonResult) return;
+    const report = `# Cognifolio Redline Audit Report
+**Base Document (A):** ${comparisonResult.base_document_title} (${comparisonResult.base_document_type})
+**Target Document (B):** ${comparisonResult.target_document_title} (${comparisonResult.target_document_type})
+**Generated:** ${new Date().toLocaleString()}
+
+## Executive Summary
+${comparisonResult.executive_summary}
+
+## Key Metrics
+- **Risk Delta:** ${comparisonResult.metrics.risk_delta.toUpperCase()}
+- **Similarity Score:** ${comparisonResult.metrics.similarity_score}%
+- **Clauses Added (+):** ${comparisonResult.metrics.added_count}
+- **Clauses Removed (-):** ${comparisonResult.metrics.removed_count}
+- **Clauses Modified (~):** ${comparisonResult.metrics.modified_count}
+${comparisonResult.metrics.financial_delta ? `- **Financial Delta:** ${comparisonResult.metrics.financial_delta}` : ''}
+
+## Material Redlines & Differences
+${comparisonResult.diffs
+  .map(
+    (
+      d,
+      i,
+    ) => `### ${i + 1}. [${d.type.toUpperCase()}] ${d.title} (${d.category} · Risk: ${d.risk_impact})
+- **Impact:** ${d.explanation}
+${d.doc_a_text ? `- **Doc A (Original):** "${d.doc_a_text}"` : ''}
+${d.doc_b_text ? `- **Doc B (Revised):** "${d.doc_b_text}"` : ''}
+`,
+  )
+  .join('\n')}
+
+## Recommendations
+${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
+`;
+    navigator.clipboard.writeText(report);
+    copiedReport = true;
+    setTimeout(() => (copiedReport = false), 2500);
+  }
+
+  function getFilteredDiffs(diffs) {
+    if (!diffs) return [];
+    return diffs.filter((d) => {
+      const matchCat =
+        compareFilterCategory === 'all' ||
+        d.category?.toLowerCase() === compareFilterCategory.toLowerCase();
+      const matchType =
+        compareFilterType === 'all' || d.type?.toLowerCase() === compareFilterType.toLowerCase();
+      const matchSearch =
+        !compareSearch ||
+        d.title?.toLowerCase().includes(compareSearch.toLowerCase()) ||
+        d.explanation?.toLowerCase().includes(compareSearch.toLowerCase()) ||
+        d.doc_a_text?.toLowerCase().includes(compareSearch.toLowerCase()) ||
+        d.doc_b_text?.toLowerCase().includes(compareSearch.toLowerCase());
+      return matchCat && matchType && matchSearch;
+    });
+  }
 </script>
 
 <div class="app-layout">
@@ -620,6 +751,29 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
           stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg
         >
         Compliance & Audit Trails {complianceStats ? `· ${complianceStats.total_audit_events}` : ''}
+      </button>
+
+      <button
+        class="nav-tab {activeTab === 'compare' ? 'active' : ''}"
+        on:click={() => {
+          activeTab = 'compare';
+          initCompareDefaults();
+        }}
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M16 3h5v5" />
+          <path d="M8 21H3v-5" />
+          <path d="M21 3l-7 7" />
+          <path d="M3 21l7-7" />
+        </svg>
+        Redline & Compare {comparisonResult ? `· ${comparisonResult.diffs.length} Diffs` : ''}
       </button>
     </div>
   </nav>
@@ -822,6 +976,13 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
                           on:click={() => viewDocumentDetail(doc.id)}
                         >
                           Deep Dive →
+                        </button>
+                        <button
+                          class="btn-action compare-action-btn"
+                          title="Compare with another revision"
+                          on:click={() => openCompareWithDoc(doc.id)}
+                        >
+                          ⚖️ Compare
                         </button>
                         <button
                           class="btn-action delete"
@@ -1957,6 +2118,462 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
             </button>
           </div>
         </div>
+      </div>
+    {/if}
+
+    <!-- TAB 6: MULTI-DOCUMENT COMPARISON & REDLINE DIFF -->
+    {#if activeTab === 'compare'}
+      <div class="compare-workspace">
+        <!-- Top Workspace Bar & Document Selectors -->
+        <div class="glass-card compare-header-card">
+          <div class="compare-title-row">
+            <div>
+              <h2>AI Redline Diff & Multi-Document Comparison</h2>
+              <p class="compare-desc">
+                Select any two contract revisions, policies, or invoices. Gemini 3.5 Flash performs
+                automated redlining, detects clause additions and deletions, identifies fee shifts,
+                and evaluates liability risk deltas.
+              </p>
+            </div>
+            <div class="compare-header-actions">
+              {#if comparisonResult}
+                <button class="btn-secondary" on:click={copyComparisonReport}>
+                  {copiedReport ? '✓ Report Copied!' : '📋 Copy Redline Report'}
+                </button>
+              {/if}
+            </div>
+          </div>
+
+          <!-- Document Selectors Grid (Doc A vs Doc B) -->
+          <div class="doc-compare-selectors">
+            <!-- Doc A (Base) Card -->
+            <div class="compare-doc-select-box base-box">
+              <div class="box-badge base-badge">
+                <span class="badge-tag">DOCUMENT A</span>
+                <span class="role-hint">Base Revision / Original Contract</span>
+              </div>
+              <div class="selector-select-wrapper">
+                <select bind:value={compareBaseDocId}>
+                  <option value="" disabled>-- Select Base Document (A) --</option>
+                  {#each documents as d}
+                    <option value={d.id}>
+                      {d.original_filename} ({d.insights?.document_type || 'Document'} · {d.page_count}p)
+                    </option>
+                  {/each}
+                </select>
+              </div>
+              {#if documents.find((d) => d.id === compareBaseDocId)}
+                {@const docA = documents.find((d) => d.id === compareBaseDocId)}
+                <div class="selected-doc-mini-card">
+                  <div class="doc-mini-top">
+                    <span class="mini-icon">📄</span>
+                    <strong class="mini-title"
+                      >{docA.insights?.title || docA.original_filename}</strong
+                    >
+                  </div>
+                  <div class="doc-mini-tags">
+                    <span class="badge badge-purple"
+                      >{docA.insights?.document_type || docA.file_type}</span
+                    >
+                    <span class="mini-meta"
+                      >{docA.page_count} pages · {Math.round(docA.file_size_bytes / 1024)} KB</span
+                    >
+                    {#if docA.insights?.entities?.financial?.total_amount}
+                      <span class="badge badge-emerald"
+                        >Total: {docA.insights.entities.financial.total_amount}</span
+                      >
+                    {/if}
+                  </div>
+                  <p class="doc-mini-summary">
+                    {docA.insights?.summary?.slice(0, 110) || 'Ready for comparison'}...
+                  </p>
+                </div>
+              {/if}
+            </div>
+
+            <!-- Swap & Compare Trigger in the middle -->
+            <div class="compare-mid-controls">
+              <button
+                class="swap-docs-btn"
+                on:click={swapCompareDocs}
+                title="Swap Document A and Document B"
+              >
+                ⇄
+              </button>
+              <div class="vs-divider">VS</div>
+              <button
+                class="btn-primary compare-run-btn {isComparing ? 'loading' : ''}"
+                on:click={handleRunComparison}
+                disabled={isComparing ||
+                  !compareBaseDocId ||
+                  !compareTargetDocId ||
+                  compareBaseDocId === compareTargetDocId}
+              >
+                {#if isComparing}
+                  <span class="spinner-small"></span> Analyzing Redlines...
+                {:else}
+                  ⚡ Run AI Redline
+                {/if}
+              </button>
+            </div>
+
+            <!-- Doc B (Target) Card -->
+            <div class="compare-doc-select-box target-box">
+              <div class="box-badge target-badge">
+                <span class="badge-tag">DOCUMENT B</span>
+                <span class="role-hint">Revised Version / Target Amendment</span>
+              </div>
+              <div class="selector-select-wrapper">
+                <select bind:value={compareTargetDocId}>
+                  <option value="" disabled>-- Select Target Document (B) --</option>
+                  {#each documents as d}
+                    <option value={d.id}>
+                      {d.original_filename} ({d.insights?.document_type || 'Document'} · {d.page_count}p)
+                    </option>
+                  {/each}
+                </select>
+              </div>
+              {#if documents.find((d) => d.id === compareTargetDocId)}
+                {@const docB = documents.find((d) => d.id === compareTargetDocId)}
+                <div class="selected-doc-mini-card">
+                  <div class="doc-mini-top">
+                    <span class="mini-icon">📑</span>
+                    <strong class="mini-title"
+                      >{docB.insights?.title || docB.original_filename}</strong
+                    >
+                  </div>
+                  <div class="doc-mini-tags">
+                    <span class="badge badge-purple"
+                      >{docB.insights?.document_type || docB.file_type}</span
+                    >
+                    <span class="mini-meta"
+                      >{docB.page_count} pages · {Math.round(docB.file_size_bytes / 1024)} KB</span
+                    >
+                    {#if docB.insights?.entities?.financial?.total_amount}
+                      <span class="badge badge-emerald"
+                        >Total: {docB.insights.entities.financial.total_amount}</span
+                      >
+                    {/if}
+                  </div>
+                  <p class="doc-mini-summary">
+                    {docB.insights?.summary?.slice(0, 110) || 'Ready for comparison'}...
+                  </p>
+                </div>
+              {/if}
+            </div>
+          </div>
+        </div>
+
+        <!-- Comparison Result Dashboard -->
+        {#if comparisonResult}
+          <!-- Executive Verdict & Risk Delta Banner -->
+          <div
+            class="glass-card verdict-banner {comparisonResult.metrics.risk_delta === 'increased'
+              ? 'risk-increased'
+              : comparisonResult.metrics.risk_delta === 'decreased'
+                ? 'risk-mitigated'
+                : 'risk-neutral'}"
+          >
+            <div class="verdict-icon">
+              {#if comparisonResult.metrics.risk_delta === 'increased'}
+                🔺
+              {:else if comparisonResult.metrics.risk_delta === 'decreased'}
+                🟢
+              {:else}
+                ⚖️
+              {/if}
+            </div>
+            <div class="verdict-content">
+              <div class="verdict-top-tags">
+                <span class="verdict-label">Executive Redline Verdict</span>
+                <span class="risk-badge {comparisonResult.metrics.risk_delta}">
+                  {comparisonResult.metrics.risk_delta === 'increased'
+                    ? 'Heightened Risk Exposure Detected'
+                    : comparisonResult.metrics.risk_delta === 'decreased'
+                      ? 'Risk Mitigated & Favorable'
+                      : 'Balanced Terms Alignment'}
+                </span>
+                {#if comparisonResult.metrics.financial_delta}
+                  <span class="financial-delta-badge">
+                    💰 Financial Delta: {comparisonResult.metrics.financial_delta}
+                  </span>
+                {/if}
+              </div>
+              <p class="verdict-text">{comparisonResult.executive_summary}</p>
+            </div>
+            <div class="similarity-circle-box">
+              <div class="sim-val">{comparisonResult.metrics.similarity_score}%</div>
+              <div class="sim-label">Similarity Match</div>
+            </div>
+          </div>
+
+          <!-- Metrics Stat Cards Grid -->
+          <div class="diff-metrics-grid">
+            <div class="metric-card added-card">
+              <div class="metric-num">+{comparisonResult.metrics.added_count}</div>
+              <div class="metric-label">Added Provisions</div>
+              <div class="metric-sub">Introduced in Document B</div>
+            </div>
+            <div class="metric-card removed-card">
+              <div class="metric-num">-{comparisonResult.metrics.removed_count}</div>
+              <div class="metric-label">Removed Clauses</div>
+              <div class="metric-sub">Omitted from original Doc A</div>
+            </div>
+            <div class="metric-card modified-card">
+              <div class="metric-num">~{comparisonResult.metrics.modified_count}</div>
+              <div class="metric-label">Modified Terms</div>
+              <div class="metric-sub">Changed obligations or schedules</div>
+            </div>
+            <div class="metric-card total-card">
+              <div class="metric-num">{comparisonResult.diffs.length}</div>
+              <div class="metric-label">Total Material Redlines</div>
+              <div class="metric-sub">Audited by Gemini 3.5 Flash</div>
+            </div>
+          </div>
+
+          <!-- Key Recommendations Checklist -->
+          {#if comparisonResult.key_recommendations && comparisonResult.key_recommendations.length > 0}
+            <div class="glass-card recommendations-card">
+              <div class="rec-header">
+                <span class="rec-icon">💡</span>
+                <div>
+                  <h4>Negotiation & Counsel Action Items</h4>
+                  <p class="rec-sub">
+                    Prioritized strategic guidance before executing contract revisions:
+                  </p>
+                </div>
+              </div>
+              <div class="rec-list">
+                {#each comparisonResult.key_recommendations as rec}
+                  <div class="rec-item">
+                    <span class="rec-bullet">→</span>
+                    <span class="rec-text">{rec}</span>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          <!-- Redline Explorer Section -->
+          <div class="glass-card redlines-container-card">
+            <!-- Filter & Search Toolbar -->
+            <div class="redline-toolbar">
+              <div class="toolbar-left">
+                <span class="toolbar-title">Audited Redline Entries</span>
+                <span class="count-badge"
+                  >{getFilteredDiffs(comparisonResult.diffs).length} of {comparisonResult.diffs
+                    .length}</span
+                >
+              </div>
+              <div class="toolbar-right">
+                <!-- Search -->
+                <div class="redline-search-wrapper">
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    ><circle cx="11" cy="11" r="8" /><line
+                      x1="21"
+                      y1="21"
+                      x2="16.65"
+                      y2="16.65"
+                    /></svg
+                  >
+                  <input
+                    type="text"
+                    placeholder="Filter redlines by keyword..."
+                    bind:value={compareSearch}
+                  />
+                </div>
+
+                <!-- Filter by Type -->
+                <div class="filter-pills-row">
+                  <button
+                    class="filter-pill {compareFilterType === 'all' ? 'active' : ''}"
+                    on:click={() => (compareFilterType = 'all')}>All Types</button
+                  >
+                  <button
+                    class="filter-pill pill-added {compareFilterType === 'added' ? 'active' : ''}"
+                    on:click={() => (compareFilterType = 'added')}
+                    >+ Added ({comparisonResult.metrics.added_count})</button
+                  >
+                  <button
+                    class="filter-pill pill-removed {compareFilterType === 'removed'
+                      ? 'active'
+                      : ''}"
+                    on:click={() => (compareFilterType = 'removed')}
+                    >- Removed ({comparisonResult.metrics.removed_count})</button
+                  >
+                  <button
+                    class="filter-pill pill-modified {compareFilterType === 'modified'
+                      ? 'active'
+                      : ''}"
+                    on:click={() => (compareFilterType = 'modified')}
+                    >~ Modified ({comparisonResult.metrics.modified_count})</button
+                  >
+                </div>
+
+                <!-- Filter by Category -->
+                <div class="filter-pills-row">
+                  <button
+                    class="filter-pill {compareFilterCategory === 'all' ? 'active' : ''}"
+                    on:click={() => (compareFilterCategory = 'all')}>All Categories</button
+                  >
+                  <button
+                    class="filter-pill {compareFilterCategory === 'clause' ? 'active' : ''}"
+                    on:click={() => (compareFilterCategory = 'clause')}>Clauses</button
+                  >
+                  <button
+                    class="filter-pill {compareFilterCategory === 'financial' ? 'active' : ''}"
+                    on:click={() => (compareFilterCategory = 'financial')}>Financial</button
+                  >
+                  <button
+                    class="filter-pill {compareFilterCategory === 'liability' ? 'active' : ''}"
+                    on:click={() => (compareFilterCategory = 'liability')}>Liability</button
+                  >
+                </div>
+              </div>
+            </div>
+
+            <!-- List of Diff Cards -->
+            <div class="diff-cards-list">
+              {#if getFilteredDiffs(comparisonResult.diffs).length === 0}
+                <div class="empty-diffs-state">
+                  <p>No redlines match the selected filters.</p>
+                </div>
+              {:else}
+                {#each getFilteredDiffs(comparisonResult.diffs) as diff}
+                  <div class="diff-card {diff.type}">
+                    <!-- Card Top Header -->
+                    <div class="diff-card-header">
+                      <div class="diff-header-left">
+                        <span class="diff-type-badge {diff.type}">
+                          {diff.type === 'added'
+                            ? '+ ADDED IN DOC B'
+                            : diff.type === 'removed'
+                              ? '- REMOVED FROM DOC A'
+                              : '~ MODIFIED TERM'}
+                        </span>
+                        <span class="diff-cat-badge"
+                          >{diff.category?.toUpperCase() || 'CLAUSE'}</span
+                        >
+                        <span class="diff-risk-badge {diff.risk_impact}">
+                          RISK: {diff.risk_impact?.toUpperCase() || 'NEUTRAL'}
+                        </span>
+                      </div>
+                      <div class="diff-page-badges">
+                        {#if diff.doc_a_page}
+                          <span class="page-tag page-a">Doc A: Pg {diff.doc_a_page}</span>
+                        {/if}
+                        {#if diff.doc_b_page}
+                          <span class="page-tag page-b">Doc B: Pg {diff.doc_b_page}</span>
+                        {/if}
+                      </div>
+                    </div>
+
+                    <!-- Title & Explanation -->
+                    <h3 class="diff-title">{diff.title}</h3>
+                    <p class="diff-explanation">{diff.explanation}</p>
+
+                    <!-- Side-by-Side Visual Redline Comparison -->
+                    <div class="redline-diff-boxes">
+                      {#if diff.type === 'modified'}
+                        <div class="redline-box box-del">
+                          <div class="redline-box-title">
+                            <span class="del-symbol">-</span> Document A (Original / Pre-revision)
+                          </div>
+                          <div class="redline-content-text strike">
+                            {diff.doc_a_text || 'Not explicitly stated in Document A'}
+                          </div>
+                        </div>
+                        <div class="redline-box box-add">
+                          <div class="redline-box-title">
+                            <span class="add-symbol">+</span> Document B (Target Amendment / Revised)
+                          </div>
+                          <div class="redline-content-text highlight">
+                            {diff.doc_b_text || 'Not explicitly stated in Document B'}
+                          </div>
+                        </div>
+                      {:else if diff.type === 'added'}
+                        <div class="redline-box box-add full-width">
+                          <div class="redline-box-title">
+                            <span class="add-symbol">+</span> New Provision Introduced in Document B
+                          </div>
+                          <div class="redline-content-text highlight">{diff.doc_b_text}</div>
+                        </div>
+                      {:else if diff.type === 'removed'}
+                        <div class="redline-box box-del full-width">
+                          <div class="redline-box-title">
+                            <span class="del-symbol">-</span> Omitted Provision Deleted from Document
+                            A
+                          </div>
+                          <div class="redline-content-text strike">{diff.doc_a_text}</div>
+                        </div>
+                      {/if}
+                    </div>
+
+                    <!-- Quick Action Links -->
+                    <div class="diff-card-footer">
+                      {#if diff.doc_a_page}
+                        <button
+                          class="footer-inspect-btn"
+                          on:click={() => {
+                            viewDocumentDetail(compareBaseDocId);
+                            activeTab = 'viewer';
+                          }}
+                        >
+                          Inspect in Doc A (Page {diff.doc_a_page}) →
+                        </button>
+                      {/if}
+                      {#if diff.doc_b_page}
+                        <button
+                          class="footer-inspect-btn"
+                          on:click={() => {
+                            viewDocumentDetail(compareTargetDocId);
+                            activeTab = 'viewer';
+                          }}
+                        >
+                          Inspect in Doc B (Page {diff.doc_b_page}) →
+                        </button>
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
+              {/if}
+            </div>
+          </div>
+        {:else if !isComparing}
+          <!-- Pre-comparison empty/guidance prompt -->
+          <div class="glass-card compare-empty-card">
+            <div class="empty-icon">⚖️</div>
+            <h3>Select Two Documents to Initiate Automated Redlining</h3>
+            <p>
+              Compare contracts, policy revisions, purchase orders, or invoices side-by-side. Gemini
+              3.5 Flash analyzes clause modifications, fee differentials, and risk exposure changes
+              in real-time.
+            </p>
+            <div class="quick-compare-suggestions">
+              <span>Quick Compare Suggestions:</span>
+              <div class="suggestions-chips">
+                {#if documents.length >= 2}
+                  <button
+                    class="chip-btn"
+                    on:click={() => {
+                      compareBaseDocId = documents[0].id;
+                      compareTargetDocId = documents[1].id;
+                      handleRunComparison();
+                    }}
+                  >
+                    Compare {documents[0].original_filename} vs {documents[1].original_filename} ⚡
+                  </button>
+                {/if}
+              </div>
+            </div>
+          </div>
+        {/if}
       </div>
     {/if}
   </main>
@@ -4113,6 +4730,813 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
 
   .delete-all:hover {
     background: rgba(244, 63, 94, 0.3);
+  }
+
+  /* Compare Action Button in Document Rows */
+  .compare-action-btn {
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    color: #a5b4fc;
+    font-size: 0.76rem;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .compare-action-btn:hover {
+    background: rgba(99, 102, 241, 0.25);
+    border-color: rgba(99, 102, 241, 0.5);
+    color: #ffffff;
+    transform: translateY(-1px);
+  }
+
+  /* Multi-Document Comparison Workspace */
+  .compare-workspace {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .compare-header-card {
+    padding: 24px;
+  }
+
+  .compare-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  .compare-desc {
+    color: #94a3b8;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    margin: 6px 0 0 0;
+    max-width: 850px;
+  }
+
+  .doc-compare-selectors {
+    display: grid;
+    grid-template-columns: 1fr 140px 1fr;
+    gap: 16px;
+    align-items: center;
+  }
+
+  .compare-doc-select-box {
+    padding: 16px;
+    border-radius: var(--radius-md);
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: all 0.2s ease;
+  }
+
+  .base-box {
+    border-color: rgba(56, 189, 248, 0.3);
+    background: rgba(56, 189, 248, 0.03);
+  }
+
+  .target-box {
+    border-color: rgba(168, 85, 247, 0.3);
+    background: rgba(168, 85, 247, 0.03);
+  }
+
+  .box-badge {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.74rem;
+    font-weight: 700;
+  }
+
+  .badge-tag {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+  }
+
+  .base-badge .badge-tag {
+    background: rgba(56, 189, 248, 0.18);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+  }
+
+  .target-badge .badge-tag {
+    background: rgba(168, 85, 247, 0.18);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.35);
+  }
+
+  .role-hint {
+    color: #94a3b8;
+    font-weight: 500;
+    font-size: 0.74rem;
+  }
+
+  .selector-select-wrapper select {
+    width: 100%;
+    background: rgba(10, 15, 29, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: var(--radius-sm);
+    color: #f8fafc;
+    padding: 10px 12px;
+    font-size: 0.86rem;
+    outline: none;
+    cursor: pointer;
+    transition: border 0.2s;
+  }
+
+  .selector-select-wrapper select:focus {
+    border-color: #38bdf8;
+  }
+
+  .selected-doc-mini-card {
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-sm);
+  }
+
+  .doc-mini-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .mini-icon {
+    font-size: 1.1rem;
+  }
+
+  .mini-title {
+    font-size: 0.86rem;
+    color: #f1f5f9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .doc-mini-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+
+  .mini-meta {
+    font-size: 0.72rem;
+    color: #94a3b8;
+  }
+
+  .doc-mini-summary {
+    font-size: 0.76rem;
+    color: #94a3b8;
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .compare-mid-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .swap-docs-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #cbd5e1;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+  }
+
+  .swap-docs-btn:hover {
+    transform: rotate(180deg);
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+  }
+
+  .vs-divider {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #64748b;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+
+  .compare-run-btn {
+    white-space: nowrap;
+    font-size: 0.82rem;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Verdict Banner */
+  .verdict-banner {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 20px 24px;
+    border-radius: var(--radius-md);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .verdict-banner.risk-increased {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.14), rgba(15, 23, 42, 0.85));
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    box-shadow: 0 0 30px rgba(239, 68, 68, 0.1);
+  }
+
+  .verdict-banner.risk-mitigated {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(15, 23, 42, 0.85));
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.1);
+  }
+
+  .verdict-banner.risk-neutral {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.14), rgba(15, 23, 42, 0.85));
+    border: 1px solid rgba(6, 182, 212, 0.35);
+  }
+
+  .verdict-icon {
+    font-size: 2.4rem;
+    flex-shrink: 0;
+  }
+
+  .verdict-content {
+    flex: 1;
+  }
+
+  .verdict-top-tags {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .verdict-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: #94a3b8;
+  }
+
+  .risk-badge {
+    font-size: 0.74rem;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 12px;
+  }
+
+  .risk-badge.increased {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+  }
+
+  .risk-badge.decreased {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+  }
+
+  .risk-badge.neutral {
+    background: rgba(6, 182, 212, 0.2);
+    color: #38bdf8;
+    border: 1px solid rgba(6, 182, 212, 0.4);
+  }
+
+  .financial-delta-badge {
+    font-size: 0.74rem;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 12px;
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+  }
+
+  .verdict-text {
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: #f1f5f9;
+    margin: 0;
+  }
+
+  .similarity-circle-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 86px;
+    height: 86px;
+    border-radius: 50%;
+    background: rgba(15, 23, 42, 0.75);
+    border: 2px solid rgba(56, 189, 248, 0.4);
+    flex-shrink: 0;
+  }
+
+  .sim-val {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #38bdf8;
+    line-height: 1;
+  }
+
+  .sim-label {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+    margin-top: 4px;
+  }
+
+  /* Metrics Stat Cards Grid */
+  .diff-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+
+  .metric-card {
+    padding: 16px;
+    border-radius: var(--radius-md);
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .metric-num {
+    font-size: 1.8rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .added-card .metric-num {
+    color: #34d399;
+  }
+
+  .removed-card .metric-num {
+    color: #f87171;
+  }
+
+  .modified-card .metric-num {
+    color: #fbbf24;
+  }
+
+  .total-card .metric-num {
+    color: #38bdf8;
+  }
+
+  .metric-label {
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: #f1f5f9;
+  }
+
+  .metric-sub {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    line-height: 1.3;
+  }
+
+  /* Key Recommendations Checklist */
+  .recommendations-card {
+    padding: 18px 20px;
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: var(--radius-md);
+  }
+
+  .rec-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .rec-icon {
+    font-size: 1.4rem;
+  }
+
+  .rec-header h4 {
+    margin: 0;
+    font-size: 0.94rem;
+    color: #fef3c7;
+    font-weight: 700;
+  }
+
+  .rec-sub {
+    margin: 2px 0 0 0;
+    font-size: 0.78rem;
+    color: #94a3b8;
+  }
+
+  .rec-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .rec-item {
+    display: flex;
+    gap: 10px;
+    font-size: 0.84rem;
+    color: #e2e8f0;
+    line-height: 1.45;
+  }
+
+  .rec-bullet {
+    color: #f59e0b;
+    font-weight: 700;
+  }
+
+  /* Redline Explorer Toolbar & Cards */
+  .redlines-container-card {
+    padding: 20px;
+  }
+
+  .redline-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .toolbar-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #f8fafc;
+  }
+
+  .toolbar-right {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .redline-search-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-sm);
+    color: #cbd5e1;
+  }
+
+  .redline-search-wrapper input {
+    background: transparent;
+    border: none;
+    outline: none;
+    font-size: 0.82rem;
+    color: #f8fafc;
+    width: 170px;
+  }
+
+  .pill-added.active {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: rgba(16, 185, 129, 0.4);
+    color: #34d399;
+  }
+
+  .pill-removed.active {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #f87171;
+  }
+
+  .pill-modified.active {
+    background: rgba(245, 158, 11, 0.2);
+    border-color: rgba(245, 158, 11, 0.4);
+    color: #fbbf24;
+  }
+
+  .diff-cards-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .diff-card {
+    padding: 18px;
+    border-radius: var(--radius-md);
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.2s ease;
+  }
+
+  .diff-card.added {
+    border-left: 4px solid #34d399;
+  }
+
+  .diff-card.removed {
+    border-left: 4px solid #f87171;
+  }
+
+  .diff-card.modified {
+    border-left: 4px solid #fbbf24;
+  }
+
+  .diff-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .diff-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .diff-type-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .diff-type-badge.added {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+  }
+
+  .diff-type-badge.removed {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+  }
+
+  .diff-type-badge.modified {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+  }
+
+  .diff-cat-badge {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .diff-risk-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 10px;
+  }
+
+  .diff-risk-badge.critical,
+  .diff-risk-badge.high,
+  .diff-risk-badge.increased {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+  }
+
+  .diff-risk-badge.decreased {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+  }
+
+  .diff-risk-badge.neutral {
+    background: rgba(148, 163, 184, 0.15);
+    color: #94a3b8;
+  }
+
+  .diff-page-badges {
+    display: flex;
+    gap: 6px;
+  }
+
+  .page-tag {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .page-a {
+    background: rgba(56, 189, 248, 0.12);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+  }
+
+  .page-b {
+    background: rgba(168, 85, 247, 0.12);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.25);
+  }
+
+  .diff-title {
+    font-size: 1.02rem;
+    font-weight: 700;
+    color: #f8fafc;
+    margin: 0 0 4px 0;
+  }
+
+  .diff-explanation {
+    font-size: 0.85rem;
+    color: #cbd5e1;
+    line-height: 1.5;
+    margin: 0 0 12px 0;
+  }
+
+  .redline-diff-boxes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .redline-box {
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .redline-box.full-width {
+    grid-column: 1 / -1;
+  }
+
+  .redline-box.box-del {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+  }
+
+  .redline-box.box-add {
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+  }
+
+  .redline-box-title {
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .box-del .redline-box-title {
+    color: #f87171;
+  }
+
+  .box-add .redline-box-title {
+    color: #34d399;
+  }
+
+  .del-symbol {
+    font-weight: 800;
+    font-size: 1rem;
+  }
+
+  .add-symbol {
+    font-weight: 800;
+    font-size: 1rem;
+  }
+
+  .redline-content-text {
+    font-size: 0.84rem;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+
+  .redline-content-text.strike {
+    color: #fca5a5;
+    opacity: 0.9;
+    text-decoration: line-through;
+    text-decoration-color: rgba(239, 68, 68, 0.7);
+  }
+
+  .redline-content-text.highlight {
+    color: #a7f3d0;
+    background: rgba(16, 185, 129, 0.08);
+    padding: 2px 4px;
+    border-radius: 3px;
+  }
+
+  .diff-card-footer {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .footer-inspect-btn {
+    background: transparent;
+    border: none;
+    color: #38bdf8;
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.2s;
+  }
+
+  .footer-inspect-btn:hover {
+    color: #7dd3fc;
+    text-decoration: underline;
+  }
+
+  .compare-empty-card {
+    padding: 40px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .empty-icon {
+    font-size: 2.8rem;
+  }
+
+  .quick-compare-suggestions {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: #94a3b8;
+    font-size: 0.82rem;
+  }
+
+  .suggestions-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chip-btn {
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #bae6fd;
+    font-size: 0.82rem;
+    padding: 6px 14px;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .chip-btn:hover {
+    background: rgba(56, 189, 248, 0.2);
+    border-color: rgba(56, 189, 248, 0.5);
+    transform: translateY(-1px);
+  }
+
+  .empty-diffs-state {
+    padding: 30px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.88rem;
   }
 
   @media (max-width: 1100px) {
