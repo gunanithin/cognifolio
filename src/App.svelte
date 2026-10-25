@@ -30,6 +30,9 @@
   import CTabs from './lib/ui/CTabs.svelte';
   import CSelect from './lib/ui/CSelect.svelte';
   import CIcon from './lib/icons/CIcon.svelte';
+  import DeleteConfirmModal from './lib/components/DeleteConfirmModal.svelte';
+  import CProgressBar from './lib/ui/CProgressBar.svelte';
+  import { progress } from './lib/stores/progress.js';
 
   // Dynamic Lazy-Loaded PDF Viewer Component
   let PdfViewerComponent = null;
@@ -121,7 +124,9 @@
       ? 'Welcome to the Cognifolio Guest Playground!'
       : `Welcome back, ${currentUser.name}!`;
     await refreshAll();
-    setTimeout(() => { successMsg = ''; }, 3500);
+    setTimeout(() => {
+      successMsg = '';
+    }, 3500);
   }
 
   async function handleLogout() {
@@ -134,7 +139,9 @@
     } catch {}
     await refreshAll();
     successMsg = 'Signed out. Switched to an isolated guest session.';
-    setTimeout(() => { successMsg = ''; }, 3000);
+    setTimeout(() => {
+      successMsg = '';
+    }, 3000);
   }
 
   // Global Data
@@ -425,16 +432,21 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
   ];
 
   onMount(async () => {
-    currentUser = getCurrentUser();
-    if (!getAuthToken()) {
-      try {
-        const guestData = await startGuestSession();
-        currentUser = guestData.user;
-      } catch (err) {
-        console.warn('Could not auto-start guest session:', err);
+    progress.start('Initializing document workspace...');
+    try {
+      currentUser = getCurrentUser();
+      if (!getAuthToken()) {
+        try {
+          const guestData = await startGuestSession();
+          currentUser = guestData.user;
+        } catch (err) {
+          console.warn('Could not auto-start guest session:', err);
+        }
       }
+      await refreshAll(true);
+    } finally {
+      progress.done();
     }
-    await refreshAll(true);
   });
 
   async function refreshAll(isInitial = false) {
@@ -460,11 +472,19 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
         await refreshCompliance();
       } else if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
         window.requestIdleCallback(() => {
-          getComplianceStats().then((cs) => { complianceStats = cs; }).catch(() => {});
+          getComplianceStats()
+            .then((cs) => {
+              complianceStats = cs;
+            })
+            .catch(() => {});
         });
       } else {
         setTimeout(() => {
-          getComplianceStats().then((cs) => { complianceStats = cs; }).catch(() => {});
+          getComplianceStats()
+            .then((cs) => {
+              complianceStats = cs;
+            })
+            .catch(() => {});
         }, 1500);
       }
     } catch (err) {
@@ -589,26 +609,84 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     }
   }
 
-  async function handleDelete(docId) {
-    if (
-      !confirm(
-        'Are you sure you want to permanently delete this document and its vector embeddings?',
-      )
-    )
-      return;
+  // Delete Confirmation Modal State
+  let isDeleteModalOpen = false;
+  let docToDelete = null;
+  let deleteModalMode = 'document'; // 'document' | 'workspace'
+  let isDeletingDoc = false;
+
+  function promptDeleteDocument(docOrId) {
+    if (!docOrId) return;
+    if (typeof docOrId === 'string') {
+      const found = documents.find((d) => d.id === docOrId);
+      docToDelete =
+        found || (selectedDoc && selectedDoc.id === docOrId ? selectedDoc : { id: docOrId });
+    } else {
+      docToDelete = docOrId;
+    }
+    deleteModalMode = 'document';
+    isDeleteModalOpen = true;
+  }
+
+  function promptPurgeWorkspace() {
+    docToDelete = null;
+    deleteModalMode = 'workspace';
+    isDeleteModalOpen = true;
+  }
+
+  function handleDelete(docOrId) {
+    promptDeleteDocument(docOrId);
+  }
+
+  function closeDeleteModal() {
+    if (!isDeletingDoc) {
+      isDeleteModalOpen = false;
+      docToDelete = null;
+    }
+  }
+
+  async function confirmDelete() {
+    if (isDeletingDoc) return;
+    isDeletingDoc = true;
     try {
-      documents = documents.filter((d) => d.id !== docId);
-      if (selectedDoc && selectedDoc.id === docId) {
-        selectedDoc = null;
+      if (deleteModalMode === 'workspace') {
+        const deletePromises = documents.map((d) => deleteDocument(d.id));
+        await Promise.all(deletePromises);
+        documents = [];
+        if (selectedDoc) {
+          selectedDoc = null;
+        }
+        if (activeTab === 'viewer') {
+          activeTab = 'dashboard';
+        }
+        await refreshAll();
+        isDeleteModalOpen = false;
+        successMsg = 'All workspace documents and vector embeddings have been securely purged.';
+        setTimeout(() => {
+          successMsg = '';
+        }, 4000);
+      } else if (docToDelete) {
+        const id = docToDelete.id;
+        documents = documents.filter((d) => d.id !== id);
+        if (selectedDoc && selectedDoc.id === id) {
+          selectedDoc = null;
+          if (activeTab === 'viewer') {
+            activeTab = 'dashboard';
+          }
+        }
+        await deleteDocument(id);
+        await refreshAll();
+        isDeleteModalOpen = false;
+        docToDelete = null;
+        successMsg = 'Document and vector embeddings permanently deleted.';
+        setTimeout(() => {
+          successMsg = '';
+        }, 3500);
       }
-      await deleteDocument(docId);
-      await refreshAll();
-      successMsg = 'Document and vector index purged.';
-      setTimeout(() => {
-        successMsg = '';
-      }, 3000);
     } catch (err) {
       errorMsg = err.message;
+    } finally {
+      isDeletingDoc = false;
     }
   }
 
@@ -744,9 +822,14 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
 </script>
 
 <div class="app-layout">
+  <!-- Global Top Progress Bar & Network Activity Indicator -->
+  <CProgressBar />
+
   <!-- Top Navigation Bar -->
   <header class="top-nav">
-    <div class="top-nav-inner max-w-[1400px] w-full mx-auto flex items-center justify-between gap-4">
+    <div
+      class="top-nav-inner max-w-[1400px] w-full mx-auto flex items-center justify-between gap-4"
+    >
       <div class="nav-left">
         <div
           class="brand"
@@ -830,8 +913,12 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
           </div>
         {:else}
           <div class="auth-buttons-group flex items-center gap-2">
-            <CButton variant="ghost" size="sm" on:click={() => openAuthModal('signin')}>Sign In</CButton>
-            <CButton variant="primary" size="sm" on:click={() => openAuthModal('signup')}>Get Started</CButton>
+            <CButton variant="ghost" size="sm" on:click={() => openAuthModal('signin')}
+              >Sign In</CButton
+            >
+            <CButton variant="primary" size="sm" on:click={() => openAuthModal('signup')}
+              >Get Started</CButton
+            >
           </div>
         {/if}
       </div>
@@ -877,14 +964,25 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
             </div>
             <div class="banner-content-grid">
               <div class="banner-text">
-                <h1 class="banner-hero-title">Cognifolio — Enterprise Cognitive Document Intelligence</h1>
+                <h1 class="banner-hero-title">
+                  Cognifolio — Enterprise Cognitive Document Intelligence
+                </h1>
                 <p class="banner-hero-desc">
-                  Zero friction playground: upload PDFs to run real-time key-value extraction, semantic vector search, automated PII redaction, and multi-document comparative risk analysis.
+                  Zero friction playground: upload PDFs to run real-time key-value extraction,
+                  semantic vector search, automated PII redaction, and multi-document comparative
+                  risk analysis.
                 </p>
               </div>
               <div class="banner-actions">
                 <button class="btn-primary" on:click={() => (activeTab = 'upload')}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                     <polyline points="17 8 12 3 7 8" />
                     <line x1="12" y1="3" x2="12" y2="15" />
@@ -899,9 +997,13 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
           </div>
         {/if}
 
-        <div class="view-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div
+          class="view-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6"
+        >
           <div>
-            <h2 class="font-heading text-2xl md:text-3xl font-semibold text-ink">Enterprise Document Intelligence</h2>
+            <h2 class="font-heading text-2xl md:text-3xl font-semibold text-ink">
+              Enterprise Document Intelligence
+            </h2>
             <p class="subtitle text-sm text-ink-muted mt-1">
               Overview of indexed contracts, invoices, and automated data extractions
             </p>
@@ -914,8 +1016,14 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
 
         <!-- Metric Tiles (Spacious & Modern) -->
         <div class="metric-tiles-grid my-7 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <CCard spacious={true} interactive={true} className="flex items-center gap-5 min-h-[116px]">
-            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-border-hairline bg-surface-subtle p-3 text-ink shadow-sm">
+          <CCard
+            spacious={true}
+            interactive={true}
+            className="flex items-center gap-5 min-h-[116px]"
+          >
+            <div
+              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-border-hairline bg-surface-subtle p-3 text-ink shadow-sm"
+            >
               <CIcon name="document" size={24} />
             </div>
             <div class="flex flex-col">
@@ -928,8 +1036,14 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
             </div>
           </CCard>
 
-          <CCard spacious={true} interactive={true} className="flex items-center gap-5 min-h-[116px]">
-            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-status-success-border bg-status-success-bg p-3 text-status-success-text shadow-sm">
+          <CCard
+            spacious={true}
+            interactive={true}
+            className="flex items-center gap-5 min-h-[116px]"
+          >
+            <div
+              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-status-success-border bg-status-success-bg p-3 text-status-success-text shadow-sm"
+            >
               <CIcon name="lightning" size={24} />
             </div>
             <div class="flex flex-col">
@@ -942,8 +1056,14 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
             </div>
           </CCard>
 
-          <CCard spacious={true} interactive={true} className="flex items-center gap-5 min-h-[116px]">
-            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-status-indigo-border bg-status-indigo-bg p-3 text-status-indigo-text shadow-sm">
+          <CCard
+            spacious={true}
+            interactive={true}
+            className="flex items-center gap-5 min-h-[116px]"
+          >
+            <div
+              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-status-indigo-border bg-status-indigo-bg p-3 text-status-indigo-text shadow-sm"
+            >
               <CIcon name="building" size={24} />
             </div>
             <div class="flex flex-col">
@@ -956,14 +1076,18 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
             </div>
           </CCard>
 
-          <CCard spacious={true} interactive={true} className="flex items-center gap-5 min-h-[116px]">
-            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-status-warning-border bg-status-warning-bg p-3 text-status-warning-text shadow-sm">
+          <CCard
+            spacious={true}
+            interactive={true}
+            className="flex items-center gap-5 min-h-[116px]"
+          >
+            <div
+              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-status-warning-border bg-status-warning-bg p-3 text-status-warning-text shadow-sm"
+            >
               <CIcon name="shield" size={24} />
             </div>
             <div class="flex flex-col">
-              <span class="text-3xl font-bold font-body text-ink leading-tight">
-                Active
-              </span>
+              <span class="text-3xl font-bold font-body text-ink leading-tight"> Active </span>
               <span class="mt-1 text-xs font-semibold uppercase tracking-wider text-ink-muted">
                 PII Redaction Engine
               </span>
@@ -979,7 +1103,8 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
             <div class="type-distribution">
               {#if stats?.charts?.by_type?.labels && stats.charts.by_type.labels.length > 0}
                 {#each stats.charts.by_type.labels as label, i}
-                  {@const val = stats.charts.by_type.data?.[i] ?? stats.charts.by_type.values?.[i] ?? 0}
+                  {@const val =
+                    stats.charts.by_type.data?.[i] ?? stats.charts.by_type.values?.[i] ?? 0}
                   {@const totalDocs = stats.overview?.total_documents || documents.length || 1}
                   <div class="dist-row">
                     <span class="dist-label">{label}</span>
@@ -1002,9 +1127,12 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
             <h3>Vendor Spending / Contract Analytics</h3>
             <p class="card-subtitle">Aggregated from line items & extracted financial figures</p>
             <div class="vendor-breakdown">
-              {#if (stats?.charts?.vendor_breakdown?.labels?.length || stats?.charts?.by_vendor?.labels?.length)}
-                {#each (stats?.charts?.vendor_breakdown?.labels || stats?.charts?.by_vendor?.labels || []) as vendor, i}
-                  {@const amt = (stats?.charts?.vendor_breakdown?.data?.[i] ?? stats?.charts?.by_vendor?.values?.[i] ?? 0)}
+              {#if stats?.charts?.vendor_breakdown?.labels?.length || stats?.charts?.by_vendor?.labels?.length}
+                {#each stats?.charts?.vendor_breakdown?.labels || stats?.charts?.by_vendor?.labels || [] as vendor, i}
+                  {@const amt =
+                    stats?.charts?.vendor_breakdown?.data?.[i] ??
+                    stats?.charts?.by_vendor?.values?.[i] ??
+                    0}
                   <div class="vendor-item">
                     <div class="vendor-name">🏢 {vendor}</div>
                     <div class="vendor-amt">
@@ -1060,7 +1188,9 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                     <tr>
                       <td class="name-cell">
                         <div class="flex items-center gap-3">
-                          <div class="w-8 h-8 rounded-lg bg-sand/60 flex items-center justify-center text-charcoal/70 flex-shrink-0">
+                          <div
+                            class="w-8 h-8 rounded-lg bg-sand/60 flex items-center justify-center text-charcoal/70 flex-shrink-0"
+                          >
                             <CIcon name="document" size={16} />
                           </div>
                           <div class="file-details">
@@ -1108,7 +1238,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                             variant="danger"
                             size="sm"
                             title="Delete document"
-                            on:click={() => handleDelete(doc.id)}
+                            on:click={() => promptDeleteDocument(doc)}
                           >
                             <CIcon name="trash" size={13} />
                           </CButton>
@@ -1316,7 +1446,9 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
             </div>
 
             <div class="search-examples mt-4 flex flex-wrap items-center gap-2">
-              <span class="text-xs font-semibold uppercase tracking-wider text-charcoal/60">Try asking:</span>
+              <span class="text-xs font-semibold uppercase tracking-wider text-charcoal/60"
+                >Try asking:</span
+              >
               <CButton
                 variant="chip"
                 size="sm"
@@ -1355,7 +1487,9 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
         <div class="search-results-list mt-6">
           {#if searchResults.length === 0}
             <CCard spacious={true} class="text-center py-12">
-              <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-sand/80 flex items-center justify-center text-charcoal/60">
+              <div
+                class="w-12 h-12 mx-auto mb-3 rounded-full bg-sand/80 flex items-center justify-center text-charcoal/60"
+              >
                 <CIcon name="search" size={24} />
               </div>
               <h4 class="text-base font-semibold text-charcoal">No matches found yet</h4>
@@ -1365,7 +1499,8 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
             </CCard>
           {:else}
             <div class="results-meta mb-4 text-sm text-charcoal/70">
-              Found <strong class="text-ink">{searchResults.length}</strong> matching documents for query "<em class="text-ink">{searchQuery}</em>":
+              Found <strong class="text-ink">{searchResults.length}</strong> matching documents for
+              query "<em class="text-ink">{searchQuery}</em>":
             </div>
 
             <div class="space-y-4">
@@ -1381,15 +1516,21 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                   <CCard interactive={true} spacious={true}>
                     <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
                       <div class="flex items-center gap-2.5">
-                        <div class="w-7 h-7 rounded-md bg-sand/80 flex items-center justify-center text-charcoal/70">
+                        <div
+                          class="w-7 h-7 rounded-md bg-sand/80 flex items-center justify-center text-charcoal/70"
+                        >
                           <CIcon name="document" size={15} />
                         </div>
-                        <h4 class="text-base font-semibold text-charcoal font-serif">{item.title || item.original_filename}</h4>
+                        <h4 class="text-base font-semibold text-charcoal font-serif">
+                          {item.title || item.original_filename}
+                        </h4>
                         <CBadge variant="indigo">{item.document_type || 'Document'}</CBadge>
                       </div>
                       <div class="flex items-center gap-2">
                         <span class="text-xs text-charcoal/60">Vector Similarity:</span>
-                        <CBadge variant="emerald">{Math.round(item.similarity_score * 100)}% Match</CBadge>
+                        <CBadge variant="emerald"
+                          >{Math.round(item.similarity_score * 100)}% Match</CBadge
+                        >
                       </div>
                     </div>
 
@@ -1398,12 +1539,17 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                     {#if item.highlighted_points && item.highlighted_points.length > 0}
                       <div class="flex flex-wrap gap-1.5 mb-4">
                         {#each item.highlighted_points as pt}
-                          <span class="text-xs px-2.5 py-1 rounded bg-sand/70 text-charcoal/80 border border-sand-border">• {pt}</span>
+                          <span
+                            class="text-xs px-2.5 py-1 rounded bg-sand/70 text-charcoal/80 border border-sand-border"
+                            >• {pt}</span
+                          >
                         {/each}
                       </div>
                     {/if}
 
-                    <div class="flex items-center justify-between pt-3 border-t border-sand-border text-xs text-charcoal/60">
+                    <div
+                      class="flex items-center justify-between pt-3 border-t border-sand-border text-xs text-charcoal/60"
+                    >
                       <span>Indexed: {item.uploaded_at}</span>
                       <CButton variant="action" size="sm">
                         <span>Open Deep Dive Viewer →</span>
@@ -1477,16 +1623,12 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                   ⬇ Download Redacted PDF
                 </a>
               {:else}
-                <a
-                  href={getDocumentFileUrl(selectedDoc.id)}
-                  target="_blank"
-                  class="btn-secondary"
-                >
+                <a href={getDocumentFileUrl(selectedDoc.id)} target="_blank" class="btn-secondary">
                   View Raw File ↗
                 </a>
               {/if}
 
-              <button class="btn-action delete" on:click={() => handleDelete(selectedDoc.id)}>
+              <button class="btn-action delete" on:click={() => promptDeleteDocument(selectedDoc)}>
                 Delete Document ✕
               </button>
             </div>
@@ -1883,11 +2025,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
               <CIcon name="document" size={15} />
               <span>Export JSON</span>
             </CButton>
-            <CButton
-              variant="primary"
-              loading={isLoadingCompliance}
-              on:click={refreshCompliance}
-            >
+            <CButton variant="primary" loading={isLoadingCompliance} on:click={refreshCompliance}>
               <CIcon name="refresh" size={15} />
               <span>Refresh Stream</span>
             </CButton>
@@ -2254,16 +2392,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                 <strong>{documents.length}</strong>
               </div>
             </div>
-            <button
-              class="btn-action delete-all"
-              on:click={() => {
-                if (confirm('Permanently purge all workspace documents and reset database?')) {
-                  documents.forEach((d) => deleteDocument(d.id));
-                  refreshAll();
-                  alert('All documents and vector embeddings have been securely purged.');
-                }
-              }}
-            >
+            <button class="btn-action delete-all" on:click={promptPurgeWorkspace}>
               Purge All Workspace Data
             </button>
           </div>
@@ -2737,6 +2866,17 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
       on:close={() => (isAuthModalOpen = false)}
     />
   {/if}
+
+  <!-- Delete & Purge Confirmation Modal -->
+  <DeleteConfirmModal
+    bind:isOpen={isDeleteModalOpen}
+    document={docToDelete}
+    mode={deleteModalMode}
+    documentCount={documents.length}
+    isDeleting={isDeletingDoc}
+    on:close={closeDeleteModal}
+    on:confirm={confirmDelete}
+  />
 </div>
 
 <style>
@@ -3687,7 +3827,6 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     border: 1px solid var(--border-color);
     margin-bottom: 24px;
   }
-
 
   .results-meta {
     margin-bottom: 14px;

@@ -251,7 +251,9 @@
     stroke-linejoin="round"
     class="inline-block shrink-0 align-middle {className}"
   >
-    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+    <path
+      d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"
+    />
   </svg>
 {:else if name === 'dashboard'}
   <svg
@@ -326,6 +328,24 @@
     class="inline-block shrink-0 align-middle {className}"
   >
     <line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+{:else if name === 'warning' || name === 'alert' || name === 'alert-triangle'}
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    class="inline-block shrink-0 align-middle {className}"
+  >
+    <path
+      d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+    />
+    <line x1="12" y1="9" x2="12" y2="13" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
   </svg>
 {:else}
   <slot />

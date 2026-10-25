@@ -1,5 +1,9 @@
+import { progress } from './stores/progress.js';
+
 const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 const API_BASE = `${API_URL}/api/v1`;
+
+export { progress };
 
 const TOKEN_KEY = 'cognifolio_access_token';
 const USER_KEY = 'cognifolio_user';
@@ -40,20 +44,31 @@ export function clearAuthSession() {
 // ==========================================
 
 async function authFetch(endpoint, options = {}) {
-  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
-  const token = getAuthToken();
-
-  const headers = new Headers(options.headers || {});
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
+  const { skipProgress = false, progressMessage = '', ...fetchOptions } = options;
+  if (!skipProgress) {
+    progress.start(progressMessage);
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+  try {
+    const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
+    const token = getAuthToken();
 
-  return response;
+    const headers = new Headers(fetchOptions.headers || {});
+    if (token && !headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    const response = await fetch(url, {
+      ...fetchOptions,
+      headers,
+    });
+
+    return response;
+  } finally {
+    if (!skipProgress) {
+      progress.done();
+    }
+  }
 }
 
 // ==========================================
@@ -61,10 +76,11 @@ async function authFetch(endpoint, options = {}) {
 // ==========================================
 
 export async function registerUser(name, email, password) {
-  const res = await fetch(`${API_BASE}/auth/register`, {
+  const res = await authFetch('/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, email, password }),
+    progressMessage: 'Creating enterprise account...',
   });
 
   if (!res.ok) {
@@ -78,10 +94,11 @@ export async function registerUser(name, email, password) {
 }
 
 export async function loginUser(email, password) {
-  const res = await fetch(`${API_BASE}/auth/login`, {
+  const res = await authFetch('/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
+    progressMessage: 'Authenticating...',
   });
 
   if (!res.ok) {
@@ -95,9 +112,10 @@ export async function loginUser(email, password) {
 }
 
 export async function startGuestSession() {
-  const res = await fetch(`${API_BASE}/auth/guest`, {
+  const res = await authFetch('/auth/guest', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    progressMessage: 'Initializing guest sandbox...',
   });
 
   if (!res.ok) {
@@ -111,7 +129,7 @@ export async function startGuestSession() {
 }
 
 export async function loginWithGoogle(idToken, email = null, name = null, avatarUrl = null) {
-  const res = await fetch(`${API_BASE}/auth/google`, {
+  const res = await authFetch('/auth/google', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -120,6 +138,7 @@ export async function loginWithGoogle(idToken, email = null, name = null, avatar
       name,
       avatar_url: avatarUrl,
     }),
+    progressMessage: 'Verifying Google account...',
   });
 
   if (!res.ok) {
@@ -170,6 +189,7 @@ export async function uploadDocument(file, retentionDays = 90) {
   const res = await authFetch('/documents/upload', {
     method: 'POST',
     body: formData,
+    progressMessage: 'Uploading & extracting document intelligence...',
   });
 
   if (!res.ok) {
@@ -207,6 +227,7 @@ export async function getDocument(id) {
 export async function deleteDocument(id) {
   const res = await authFetch(`/documents/${id}`, {
     method: 'DELETE',
+    progressMessage: 'Purging document & vector embeddings...',
   });
   if (!res.ok) {
     if (res.status === 404) {
@@ -226,6 +247,7 @@ export async function semanticSearch(query, options = {}) {
       document_type: options.document_type || null,
       limit: options.limit || 10,
     }),
+    progressMessage: 'Searching neural vector embeddings...',
   });
 
   if (!res.ok) throw new Error('Search failed');
@@ -259,6 +281,7 @@ export async function getAuditLogs(params = {}) {
 export async function triggerDocumentRedaction(id) {
   const res = await authFetch(`/compliance/redact/${id}`, {
     method: 'POST',
+    progressMessage: 'Sanitizing PDF & applying physical redactions...',
   });
   if (!res.ok) throw new Error('Failed to apply redaction');
   return await res.json();
@@ -277,7 +300,9 @@ export function getRedactedFileUrl(id) {
 }
 
 export async function downloadAuditExport(format = 'csv') {
-  const res = await authFetch(`/compliance/export?format=${format}`);
+  const res = await authFetch(`/compliance/export?format=${format}`, {
+    progressMessage: `Exporting audit trail (${format.toUpperCase()})...`,
+  });
   if (!res.ok) throw new Error('Failed to export audit logs');
 
   const blob = await res.blob();
@@ -299,6 +324,7 @@ export async function chatWithDocument(docId, message, conversationHistory = [])
       message,
       conversation_history: conversationHistory,
     }),
+    progressMessage: 'Querying Gemini Flash with document context...',
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -317,6 +343,7 @@ export async function compareDocuments(baseDocumentId, targetDocumentId, focusAs
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    progressMessage: 'Analyzing document diffs with Gemini 3.5 Flash...',
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

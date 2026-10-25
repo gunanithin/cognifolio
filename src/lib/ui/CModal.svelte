@@ -36,7 +36,7 @@
   <div
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity duration-200"
     on:click={handleClose}
-    on:keydown={(e) => (e.key === 'Escape' || e.key === 'Enter') && handleClose()}
+    on:keydown={(e) => e.key === 'Escape' && handleClose()}
     role="button"
     tabindex="0"
   >
@@ -44,6 +44,7 @@
     <div
       class="relative w-full {maxWidth} rounded-[8px] border border-border-strong bg-surface p-7 md:p-8 shadow-paper-elevated text-ink transition-transform duration-200 {className}"
       on:click|stopPropagation
+      on:keydown|stopPropagation
       role="dialog"
       aria-modal="true"
       tabindex="-1"
