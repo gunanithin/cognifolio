@@ -1,5 +1,5 @@
 <script>
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import { loginUser, registerUser, startGuestSession, loginWithGoogle } from '../api.js';
 
   export let isOpen = false;
@@ -13,6 +13,19 @@
   let password = '';
   let isLoading = false;
   let errorMsg = '';
+
+  onMount(() => {
+    if (typeof window !== 'undefined' && !window.google?.accounts?.id) {
+      const existing = document.querySelector('script[src*="accounts.google.com/gsi/client"]');
+      if (!existing) {
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      }
+    }
+  });
 
   $: if (initialMode) {
     mode = initialMode;

@@ -21,8 +21,6 @@
     startGuestSession,
     logout,
   } from './lib/api.js';
-  import AuthModal from './lib/components/AuthModal.svelte';
-
   // Dynamic Lazy-Loaded PDF Viewer Component
   let PdfViewerComponent = null;
   let isPdfViewerLoading = false;
@@ -45,6 +43,24 @@
     loadPdfViewer();
   }
 
+  // Dynamic Lazy-Loaded Auth Modal
+  let AuthModalComponent = null;
+  let isAuthModalLoading = false;
+
+  async function loadAuthModal() {
+    if (!AuthModalComponent && !isAuthModalLoading) {
+      isAuthModalLoading = true;
+      try {
+        const mod = await import('./lib/components/AuthModal.svelte');
+        AuthModalComponent = mod.default;
+      } catch (err) {
+        console.error('Failed to load AuthModal:', err);
+      } finally {
+        isAuthModalLoading = false;
+      }
+    }
+  }
+
   // Navigation State
   let activeTab = 'dashboard'; // 'dashboard' | 'upload' | 'search' | 'viewer' | 'privacy' | 'compare'
 
@@ -53,8 +69,9 @@
   let authModalMode = 'signin'; // 'signin' | 'signup'
   let currentUser = getCurrentUser();
 
-  function openAuthModal(mode = 'signin') {
+  async function openAuthModal(mode = 'signin') {
     authModalMode = mode;
+    await loadAuthModal();
     isAuthModalOpen = true;
   }
 
@@ -383,14 +400,34 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
 
   async function refreshAll(isInitial = false) {
     try {
-      health = await fetchHealth();
-      stats = await getDashboardStats();
-      const docRes = await listDocuments();
-      documents = docRes.items || [];
-      if (documents.length > 0 && !selectedDoc) {
-        selectedDoc = documents[0];
+      // Parallelize core dashboard queries to minimize time to interactive
+      const [healthRes, statsRes, docRes] = await Promise.allSettled([
+        fetchHealth(),
+        getDashboardStats(),
+        listDocuments(),
+      ]);
+
+      if (healthRes.status === 'fulfilled') health = healthRes.value;
+      if (statsRes.status === 'fulfilled') stats = statsRes.value;
+      if (docRes.status === 'fulfilled') {
+        documents = docRes.value?.items || [];
+        if (documents.length > 0 && !selectedDoc) {
+          selectedDoc = documents[0];
+        }
       }
-      await refreshCompliance();
+
+      // Defer compliance stats to browser idle time or when on compliance tab
+      if (activeTab === 'privacy') {
+        await refreshCompliance();
+      } else if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        window.requestIdleCallback(() => {
+          getComplianceStats().then((cs) => { complianceStats = cs; }).catch(() => {});
+        });
+      } else {
+        setTimeout(() => {
+          getComplianceStats().then((cs) => { complianceStats = cs; }).catch(() => {});
+        }, 1500);
+      }
     } catch (err) {
       if (!isInitial) {
         errorMsg = err.message;
@@ -2727,12 +2764,15 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
   </main>
 
   <!-- Enterprise Authentication Modal -->
-  <AuthModal
-    bind:isOpen={isAuthModalOpen}
-    initialMode={authModalMode}
-    on:success={handleAuthSuccess}
-    on:close={() => (isAuthModalOpen = false)}
-  />
+  {#if isAuthModalOpen && AuthModalComponent}
+    <svelte:component
+      this={AuthModalComponent}
+      bind:isOpen={isAuthModalOpen}
+      initialMode={authModalMode}
+      on:success={handleAuthSuccess}
+      on:close={() => (isAuthModalOpen = false)}
+    />
+  {/if}
 </div>
 
 <style>
