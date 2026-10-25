@@ -49,7 +49,12 @@ export async function deleteDocument(id) {
   const res = await fetch(`${API_BASE}/documents/${id}`, {
     method: 'DELETE',
   });
-  if (!res.ok) throw new Error('Failed to delete document');
+  if (!res.ok) {
+    if (res.status === 404) {
+      return { success: true, message: 'Document already deleted.' };
+    }
+    throw new Error('Failed to delete document');
+  }
   return await res.json();
 }
 

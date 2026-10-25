@@ -449,8 +449,11 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     )
       return;
     try {
+      documents = documents.filter((d) => d.id !== docId);
+      if (selectedDoc && selectedDoc.id === docId) {
+        selectedDoc = null;
+      }
       await deleteDocument(docId);
-      selectedDoc = null;
       await refreshAll();
       successMsg = 'Document and vector index purged.';
       setTimeout(() => {
@@ -1312,7 +1315,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
 
               {#if isRedactedView}
                 <a
-                  href={`/api/v1/documents/${selectedDoc.id}/redacted-file`}
+                  href={getRedactedFileUrl(selectedDoc.id)}
                   download={`${selectedDoc.original_filename.replace(/\.[^/.]+$/, '')}_REDACTED.pdf`}
                   class="btn-action download-redacted"
                   title="Download physically sanitized PDF"
@@ -1321,7 +1324,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                 </a>
               {:else}
                 <a
-                  href="/api/v1/documents/{selectedDoc.id}/file"
+                  href={getDocumentFileUrl(selectedDoc.id)}
                   target="_blank"
                   class="btn-secondary"
                 >
@@ -1341,8 +1344,8 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
             <div class="glass-card panel-left-viewer">
               <PdfViewer
                 fileUrl={isRedactedView
-                  ? `/api/v1/documents/${selectedDoc.id}/redacted-file`
-                  : `/api/v1/documents/${selectedDoc.id}/file`}
+                  ? getRedactedFileUrl(selectedDoc.id)
+                  : getDocumentFileUrl(selectedDoc.id)}
                 fileType={selectedDoc.file_type}
                 rawText={selectedDoc.insights?.raw_extracted_text || ''}
                 bind:highlightQuery={activeHighlightTerm}
