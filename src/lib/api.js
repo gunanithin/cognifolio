@@ -71,3 +71,54 @@ export async function getDashboardStats() {
   if (!res.ok) throw new Error('Failed to load dashboard metrics');
   return await res.json();
 }
+
+export async function getComplianceStats() {
+  const res = await fetch(`${API_BASE}/compliance/stats`);
+  if (!res.ok) throw new Error('Failed to load compliance stats');
+  return await res.json();
+}
+
+export async function getAuditLogs(params = {}) {
+  const q = new URLSearchParams();
+  if (params.action && params.action !== 'all') q.append('action', params.action);
+  if (params.search) q.append('search', params.search);
+  if (params.limit) q.append('limit', params.limit);
+  if (params.offset) q.append('offset', params.offset);
+
+  const res = await fetch(`${API_BASE}/compliance/audit-logs?${q.toString()}`);
+  if (!res.ok) throw new Error('Failed to fetch audit logs');
+  return await res.json();
+}
+
+export async function triggerDocumentRedaction(id) {
+  const res = await fetch(`${API_BASE}/compliance/redact/${id}`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error('Failed to apply redaction');
+  return await res.json();
+}
+
+export function getDocumentFileUrl(id) {
+  return `${API_BASE}/documents/${id}/file`;
+}
+
+export function getRedactedFileUrl(id) {
+  return `${API_BASE}/documents/${id}/redacted-file`;
+}
+
+export async function downloadAuditExport(format = 'csv') {
+  const url = `${API_BASE}/compliance/export?format=${format}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to export audit logs');
+  
+  const blob = await res.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = downloadUrl;
+  a.download = `cognifolio_audit_trail_${new Date().toISOString().slice(0, 10)}.${format}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(downloadUrl);
+}
+
