@@ -68,6 +68,40 @@ describe('PdfViewer Multi-Format Rendering Tests', () => {
     expect(html).toContain('Entity Located:');
   });
 
+  it('renders interactive SVG spatial bounding boxes on image scans when coordinates exist', () => {
+    const { html } = render(PdfViewer, {
+      props: {
+        fileUrl: '/uploads/invoice_scan.png',
+        fileType: 'png',
+        rawText: 'INVOICE #98231 ACME CORP TOTAL: $1,250.00',
+        entities: {
+          total_amount: {
+            value: '$1,250.00',
+            box_2d: [780, 650, 815, 880],
+          },
+        },
+        lineItems: [
+          {
+            description: 'UI Architecture',
+            amount: 1250,
+            box_2d: [450, 120, 480, 880],
+          },
+        ],
+        highlightQuery: {
+          id: 'total_amount',
+          key: 'total_amount',
+          box_2d: [780, 650, 815, 880],
+        },
+      },
+    });
+
+    expect(html).toContain('spatial-bounding-svg');
+    expect(html).toContain('spatial-box-group');
+    expect(html).toContain('total amount: $1,250.00');
+    expect(html).toContain('Line Item: UI Architecture');
+    expect(html).toContain('active-pulse');
+  });
+
   it('renders formatted document reader for Word docx documents', () => {
     const docxMarkdown = `# Master Service Agreement
 
@@ -115,5 +149,98 @@ Status: ACTIVE`;
     expect(html).toContain('Text &amp; Highlights');
     expect(html).toContain('STATEMENT OF ACCOUNT');
     expect(html).toContain('focal-target');
+  });
+
+  it('matches key takeaway findings to corresponding spatial bounding boxes on scan canvas', () => {
+    const { html } = render(PdfViewer, {
+      props: {
+        fileType: 'png',
+        fileUrl: '/uploads/dashboard_scan.png',
+        entities: {
+          renewal_date: {
+            value: '18/11/2026',
+            box_2d: [350, 400, 390, 600],
+          },
+        },
+        lineItems: [
+          {
+            description: 'Optima Secure',
+            amount: 0,
+            box_2d: [500, 100, 540, 450],
+          },
+        ],
+        highlightQuery: {
+          type: 'takeaway',
+          text: 'Earliest renewal date is set for ICICI Lombard Protect on November 18, 2026.',
+          id: 'Earliest renewal date is set for ICICI Lombard Protect on November 18, 2026.',
+          label: 'Earliest renewal date is set for...',
+        },
+      },
+    });
+
+    expect(html).toContain('spatial-bounding-svg');
+    expect(html).toContain('active-pulse');
+    expect(html).toContain('📍 renewal date: 18/11/2026');
+    expect(html).toContain('Visual Box: renewal date');
+  });
+
+  it('favors granular leaf bounding boxes over macro container sections for takeaway queries', () => {
+    const { html } = render(PdfViewer, {
+      props: {
+        fileType: 'png',
+        fileUrl: '/uploads/architecture.png',
+        lineItems: [
+          {
+            description:
+              'Backend & Processing (FastAPI, PII Redaction Engine, Temporal Workflow Orchestration, Gemini Flash API)',
+            amount: 0,
+            box_2d: [80, 311, 813, 743],
+          },
+          {
+            description: 'Temporal Workflow Orchestration',
+            amount: 0,
+            box_2d: [466, 321, 658, 733],
+          },
+        ],
+        highlightQuery: {
+          type: 'takeaway',
+          text: 'Temporal multi-step pipeline executes sequential stages: Extract Text, Redact PII, AI Processing, Generate Embeddings, and Store Results.',
+          id: 'takeaway-3',
+          label: 'Temporal multi-step pipeline...',
+        },
+      },
+    });
+
+    expect(html).toContain('spatial-bounding-svg');
+    expect(html).toContain('active-pulse');
+    expect(html).toContain('📍 Line Item: Temporal Workflow Orchestration');
+  });
+
+  it('unpacks compound container line items into granular leaf spatial boxes on scan canvas', () => {
+    const { html } = render(PdfViewer, {
+      props: {
+        fileType: 'png',
+        fileUrl: '/uploads/architecture.png',
+        lineItems: [
+          {
+            description:
+              'Backend & Processing (FastAPI, PII Redaction Engine, Temporal Workflow Orchestration, Gemini Flash API)',
+            amount: 0,
+            box_2d: [80, 311, 813, 743],
+          },
+        ],
+        highlightQuery: {
+          type: 'takeaway',
+          text: 'Temporal multi-step pipeline executes sequential stages: Extract Text, Redact PII, AI Processing, Generate Embeddings, and Store Results.',
+          id: 'takeaway-3',
+          label: 'Temporal multi-step pipeline...',
+        },
+      },
+    });
+
+    expect(html).toContain('spatial-bounding-svg');
+    expect(html).toContain('active-pulse');
+    expect(html).toContain('📍 Component: Temporal Workflow Orchestration');
+    expect(html).toContain('Visual Box: Component');
   });
 });
