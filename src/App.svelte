@@ -1190,10 +1190,10 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
 
   <!-- Main Content Area -->
   <main class="content-container">
-    <!-- TAB 1: MINIMALIST DOCUMENTS WORKSPACE (Foxit-Style Clean Interface) -->
+    <!-- TAB 1: DOCUMENTS WORKSPACE (Clean Interface) -->
     {#if activeTab === 'dashboard'}
       <div class="dashboard-view">
-        <!-- Minimalist Workspace Header -->
+        <!-- Workspace Header -->
         <div class="workspace-header">
           <div class="workspace-title-group">
             <h1 class="workspace-title">Documents Workspace</h1>
@@ -1216,7 +1216,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
           </div>
         </div>
 
-        <!-- Sleek Minimal KPI Summary Strip -->
+        <!-- Sleek KPI Summary Strip -->
         <div class="minimal-kpi-bar">
           <div class="kpi-item">
             <div class="kpi-icon-wrap">
@@ -1253,7 +1253,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
           </div>
         </div>
 
-        <!-- Minimalist Drag & Drop Intake Card -->
+        <!-- Drag & Drop Intake Card -->
         <div class="minimal-intake-card">
           <div
             class="minimal-dropzone"
@@ -1467,7 +1467,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
               </table>
             </div>
 
-            <!-- Minimalist Pagination Bar -->
+            <!-- Pagination Bar -->
             <div class="pagination-bar">
               <span class="pagination-info">
                 Showing <strong
@@ -1828,7 +1828,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
               {/each}
             </div>
 
-            <!-- Minimalist Pagination Bar -->
+            <!-- Pagination Bar -->
             <div class="pagination-bar standalone mt-4">
               <span class="pagination-info">
                 Showing <strong
@@ -2376,7 +2376,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
           </div>
         </div>
 
-        <!-- Sleek 3-Metric KPI Bar (Foxit Minimalist Style) -->
+        <!-- Sleek 3-Metric KPI Bar -->
         <div class="compliance-kpi-bar">
           <div class="comp-kpi-item">
             <span class="comp-kpi-label">Compliance Posture</span>
@@ -2418,7 +2418,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
           </div>
         </div>
 
-        <!-- Active PII Guardrails Strip (Minimalist, compact chip inventory) -->
+        <!-- Active PII Guardrails Strip (Compact chip inventory) -->
         <div class="guardrails-strip">
           <div class="guardrails-header">
             <span class="guardrails-title">Active Sanitization Guardrails</span>
@@ -2529,7 +2529,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
             </div>
           </div>
 
-          <!-- Minimalist Audit Table -->
+          <!-- Audit Table -->
           <div class="audit-table-container">
             {#if isLoadingCompliance}
               <div class="audit-loading">
@@ -2599,7 +2599,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                 </table>
               </div>
 
-              <!-- Minimalist Pagination Bar -->
+              <!-- Pagination Bar -->
               <div class="pagination-bar">
                 <span class="pagination-info">
                   Showing <strong
@@ -3092,7 +3092,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
             </div>
 
             {#if filteredDiffsList.length > 0}
-              <!-- Minimalist Pagination Bar -->
+              <!-- Pagination Bar -->
               <div class="pagination-bar standalone mt-4">
                 <span class="pagination-info">
                   Showing <strong
@@ -3488,7 +3488,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
   }
 
   /* ==========================================================================
-     Minimalist Documents Workspace (Foxit-Style Clean Interface)
+     Documents Workspace (Clean Interface)
      ========================================================================== */
   .workspace-header {
     display: flex;
@@ -3526,7 +3526,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     gap: 12px;
   }
 
-  /* Sleek Minimalist KPI Bar */
+  /* Sleek KPI Bar */
   .minimal-kpi-bar {
     display: flex;
     align-items: center;
@@ -5466,7 +5466,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     background: #2a2a2a;
   }
 
-  /* Compliance & Audit Minimalist View */
+  /* Compliance & Audit View */
   .compliance-header {
     display: flex;
     justify-content: space-between;
@@ -6883,7 +6883,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     scrollbar-color: #d1d5db transparent;
   }
 
-  /* Universal Minimalist Pagination Bar */
+  /* Universal Pagination Bar */
   .pagination-bar {
     display: flex;
     align-items: center;
