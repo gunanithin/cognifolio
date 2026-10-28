@@ -224,6 +224,18 @@ export async function getDocument(id) {
   return await res.json();
 }
 
+export async function reanalyzeDocument(id) {
+  const res = await authFetch(`/documents/${id}/reanalyze`, {
+    method: 'POST',
+    progressMessage: 'Re-analyzing document intelligence...',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to re-analyze document');
+  }
+  return await res.json();
+}
+
 export async function deleteDocument(id) {
   const res = await authFetch(`/documents/${id}`, {
     method: 'DELETE',
@@ -327,7 +339,7 @@ export async function chatWithDocument(docId, message, conversationHistory = [])
       message,
       conversation_history: conversationHistory,
     }),
-    progressMessage: 'Querying Gemini Flash with document context...',
+    progressMessage: 'Querying document intelligence...',
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -346,7 +358,7 @@ export async function compareDocuments(baseDocumentId, targetDocumentId, focusAs
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
-    progressMessage: 'Analyzing document diffs with Gemini 3.5 Flash...',
+    progressMessage: 'Analyzing document diffs with AI...',
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

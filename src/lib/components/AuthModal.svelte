@@ -122,7 +122,7 @@
     <p class="mt-1 text-xs text-ink-muted leading-relaxed">
       {mode === 'signin'
         ? 'Sign in to access your multi-tenant document intelligence workspace.'
-        : 'Get isolated cloud storage, Gemini 3.5 Flash chat, and audit trails.'}
+        : 'Get isolated cloud storage, document AI chat, and audit trails.'}
     </p>
   </div>
 

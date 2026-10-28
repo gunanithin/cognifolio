@@ -6,6 +6,7 @@
     uploadDocument,
     deleteDocument,
     getDocument,
+    reanalyzeDocument,
     semanticSearch,
     getDashboardStats,
     getComplianceStats,
@@ -81,8 +82,19 @@
   let activeTab = 'dashboard'; // 'dashboard' | 'upload' | 'search' | 'viewer' | 'privacy' | 'compare'
 
   $: navTabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-    { id: 'upload', label: 'Upload & Extract', icon: 'upload' },
+    {
+      id: 'dashboard',
+      label: 'Documents',
+      icon: 'document',
+      badge: documents.length > 0 ? `${documents.length}` : null,
+    },
+    { id: 'upload', label: 'Upload', icon: 'upload' },
+    {
+      id: 'viewer',
+      label: 'Studio Viewer',
+      icon: 'eye',
+      badge: selectedDoc ? `${selectedDoc.original_filename.slice(0, 15)}...` : null,
+    },
     {
       id: 'search',
       label: 'Semantic Search',
@@ -90,22 +102,16 @@
       badge: searchResults.length > 0 ? `${searchResults.length}` : null,
     },
     {
-      id: 'viewer',
-      label: 'Deep Dive Viewer',
-      icon: 'eye',
-      badge: selectedDoc ? `${selectedDoc.original_filename.slice(0, 15)}...` : null,
+      id: 'compare',
+      label: 'Redline Compare',
+      icon: 'compare',
+      badge: comparisonResult ? `${comparisonResult.diffs.length} Diffs` : null,
     },
     {
       id: 'privacy',
-      label: 'Compliance & Audit Trails',
+      label: 'Audit & Compliance',
       icon: 'compliance',
       badge: complianceStats ? `${complianceStats.total_audit_events}` : null,
-    },
-    {
-      id: 'compare',
-      label: 'Redline & Compare',
-      icon: 'compare',
-      badge: comparisonResult ? `${comparisonResult.diffs.length} Diffs` : null,
     },
   ];
 
@@ -156,15 +162,89 @@
   let errorMsg = '';
   let successMsg = '';
 
+  // Workspace Document Vault Filters & Computed Metrics
+  let docFilter = 'all'; // 'all' | 'pdf' | 'spreadsheet' | 'word' | 'image'
+  let docSearch = '';
+
+  $: totalPages = documents.reduce((acc, d) => acc + (d.page_count || 1), 0);
+  $: pdfCount = documents.filter(
+    (d) => (d.file_type || '').toLowerCase().replace(/^\./, '') === 'pdf',
+  ).length;
+  $: sheetCount = documents.filter((d) =>
+    ['xlsx', 'xls', 'csv'].includes((d.file_type || '').toLowerCase().replace(/^\./, '')),
+  ).length;
+  $: docxCount = documents.filter((d) =>
+    ['docx', 'doc'].includes((d.file_type || '').toLowerCase().replace(/^\./, '')),
+  ).length;
+  $: imgCount = documents.filter((d) =>
+    ['png', 'jpg', 'jpeg', 'webp'].includes((d.file_type || '').toLowerCase().replace(/^\./, '')),
+  ).length;
+
+  $: filteredDocuments = documents.filter((doc) => {
+    if (docSearch.trim()) {
+      const q = docSearch.toLowerCase();
+      const matchName = (doc.original_filename || '').toLowerCase().includes(q);
+      const matchType = (doc.insights?.document_type || doc.file_type || '')
+        .toLowerCase()
+        .includes(q);
+      if (!matchName && !matchType) return false;
+    }
+    if (docFilter === 'all') return true;
+    const t = (doc.file_type || '').toLowerCase().replace(/^\./, '');
+    if (docFilter === 'pdf') return t === 'pdf';
+    if (docFilter === 'spreadsheet') return ['xlsx', 'xls', 'csv'].includes(t);
+    if (docFilter === 'word') return ['docx', 'doc'].includes(t);
+    if (docFilter === 'image') return ['png', 'jpg', 'jpeg', 'webp'].includes(t);
+    return true;
+  });
+
+  // Document Vault Pagination State (Max 5 rows fixed grid)
+  let docPage = 1;
+  const docPageSize = 5;
+  $: docTotalPages = Math.ceil(filteredDocuments.length / docPageSize) || 1;
+  $: {
+    if (docPage > docTotalPages) docPage = docTotalPages;
+    if (docPage < 1) docPage = 1;
+  }
+  $: paginatedDocuments = filteredDocuments.slice(
+    (docPage - 1) * docPageSize,
+    docPage * docPageSize,
+  );
+  $: if (docSearch !== undefined || docFilter !== undefined) {
+    docPage = 1;
+  }
+
+  function triggerFileInput() {
+    const el =
+      document.getElementById('dashboard-file-input') || document.getElementById('file-input');
+    if (el) el.click();
+  }
+
   // Compliance, PII Redaction & Audit State (Option 3)
   let complianceStats = null;
   let auditLogs = [];
-  let auditFilter = 'all'; // 'all' | 'uploaded' | 'viewed' | 'searched' | 'redacted' | 'deleted'
+  let auditFilter = 'valid'; // 'valid' | 'uploaded' | 'redacted' | 'deleted' | 'exported' | 'all'
   let auditSearchQuery = '';
   let isLoadingCompliance = false;
   let isExportingAudit = false;
   let isRedactedView = false;
   let isReanalyzing = false;
+
+  // Audit Trail Pagination State (Max 5 rows fixed grid)
+  let auditPage = 1;
+  const auditPageSize = 5;
+  $: auditTotalPages = Math.ceil(auditLogs.length / auditPageSize) || 1;
+  $: {
+    if (auditPage > auditTotalPages) auditPage = auditTotalPages;
+    if (auditPage < 1) auditPage = 1;
+  }
+  $: paginatedAuditLogs = auditLogs.slice(
+    (auditPage - 1) * auditPageSize,
+    auditPage * auditPageSize,
+  );
+  $: if (auditFilter !== undefined || auditSearchQuery !== undefined) {
+    auditPage = 1;
+  }
 
   // Conversational Document AI (Chat with Document)
   let viewerRightTab = 'intel'; // 'intel' | 'chat'
@@ -417,6 +497,17 @@
   let searchQuery = '';
   let searchResults = [];
   let isSearching = false;
+  let searchPage = 1;
+  const searchPageSize = 5;
+  $: searchTotalPages = Math.ceil(searchResults.length / searchPageSize) || 1;
+  $: {
+    if (searchPage > searchTotalPages) searchPage = searchTotalPages;
+    if (searchPage < 1) searchPage = 1;
+  }
+  $: paginatedSearchResults = searchResults.slice(
+    (searchPage - 1) * searchPageSize,
+    searchPage * searchPageSize,
+  );
 
   // Sample Documents for 1-Click Testing
   const sampleDocuments = [
@@ -539,7 +630,7 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     try {
       isLoadingCompliance = true;
       complianceStats = await getComplianceStats();
-      const res = await getAuditLogs({ action: auditFilter, search: auditSearchQuery, limit: 100 });
+      const res = await getAuditLogs({ action: auditFilter, search: auditSearchQuery, limit: 25 });
       auditLogs = res.items || [];
     } catch (err) {
       console.error('Compliance fetch error:', err);
@@ -551,6 +642,48 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
   async function handleAuditFilterChange(filterVal) {
     auditFilter = filterVal;
     await refreshCompliance();
+  }
+
+  function getAuditActionInfo(action) {
+    if (action === 'uploaded') return { label: 'Uploaded', badgeClass: 'tag-uploaded' };
+    if (action === 'redacted') return { label: 'Redacted', badgeClass: 'tag-redacted' };
+    if (action === 'viewed_redacted') return { label: 'Masked View', badgeClass: 'tag-redacted' };
+    if (action === 'deleted') return { label: 'Purged', badgeClass: 'tag-deleted' };
+    if (action === 'exported') return { label: 'Exported', badgeClass: 'tag-exported' };
+    if (action === 'document_comparison') return { label: 'Compare', badgeClass: 'tag-searched' };
+    if (action === 'viewed') return { label: 'Viewed', badgeClass: 'tag-viewed' };
+    return { label: action || 'Event', badgeClass: 'tag-generic' };
+  }
+
+  function getAuditImpactSummary(log) {
+    if (log.action === 'uploaded') {
+      const pii = log.metadata?.pii_redacted || {};
+      const count = Object.values(pii).reduce((acc, c) => acc + (typeof c === 'number' ? c : 0), 0);
+      if (count > 0) return `${count} PII entities detected & sanitized`;
+      return 'Clean intake • Zero-PII detected';
+    }
+    if (log.action === 'redacted') {
+      return 'Physical PDF redaction applied';
+    }
+    if (log.action === 'viewed_redacted') {
+      return 'Masked zero-trust preview accessed';
+    }
+    if (log.action === 'deleted') {
+      return 'GDPR Art. 17 permanent data erasure';
+    }
+    if (log.action === 'exported') {
+      return `Cryptographic ${log.metadata?.format?.toUpperCase() || 'CSV'} export generated`;
+    }
+    if (log.action === 'document_comparison') {
+      return 'Multi-document AI policy redline';
+    }
+    if (log.action === 'viewed') {
+      return 'Document canvas inspected';
+    }
+    if (log.action === 'searched') {
+      return `Neural search for "${log.metadata?.query || ''}"`;
+    }
+    return 'Cryptographic audit ledger entry';
   }
 
   async function handleExportAudit(format) {
@@ -638,6 +771,7 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     try {
       const res = await semanticSearch(searchQuery);
       searchResults = res.results || [];
+      searchPage = 1;
       activeTab = 'search';
     } catch (err) {
       errorMsg = err.message;
@@ -673,25 +807,22 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
   async function triggerReanalyze(docId) {
     if (!docId || isReanalyzing) return;
     isReanalyzing = true;
-    progress.start('Executing deep multimodal AI analysis...');
     try {
-      const res = await authFetch(`/api/v1/documents/${docId}/reanalyze`, {
-        method: 'POST',
-      });
-      if (res.ok) {
-        const updatedDoc = await res.json();
-        selectedDoc = updatedDoc;
-        documents = documents.map((d) => (d.id === docId ? updatedDoc : d));
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(errData.detail || 'Re-analysis failed. Please try again.');
-      }
+      const updatedDoc = await reanalyzeDocument(docId);
+      selectedDoc = updatedDoc;
+      documents = documents.map((d) => (d.id === docId ? updatedDoc : d));
+      successMsg = 'Document re-analysis completed successfully.';
+      setTimeout(() => {
+        successMsg = '';
+      }, 3500);
     } catch (err) {
       console.error('Re-analysis error:', err);
-      alert('Network error while requesting AI re-analysis.');
+      errorMsg = err.message || 'Network error while requesting AI re-analysis.';
+      setTimeout(() => {
+        errorMsg = '';
+      }, 4000);
     } finally {
       isReanalyzing = false;
-      progress.done();
     }
   }
 
@@ -905,6 +1036,27 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
       return matchCat && matchType && matchSearch;
     });
   }
+
+  // Redline Comparison Pagination State (Max 5 rows/cards fixed grid)
+  let diffPage = 1;
+  const diffPageSize = 5;
+  $: filteredDiffsList = getFilteredDiffs(comparisonResult?.diffs || []);
+  $: diffTotalPages = Math.ceil(filteredDiffsList.length / diffPageSize) || 1;
+  $: {
+    if (diffPage > diffTotalPages) diffPage = diffTotalPages;
+    if (diffPage < 1) diffPage = 1;
+  }
+  $: paginatedDiffs = filteredDiffsList.slice(
+    (diffPage - 1) * diffPageSize,
+    diffPage * diffPageSize,
+  );
+  $: if (
+    compareFilterCategory !== undefined ||
+    compareFilterType !== undefined ||
+    compareSearch !== undefined
+  ) {
+    diffPage = 1;
+  }
 </script>
 
 <div class="app-layout">
@@ -952,7 +1104,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
           </svg>
           <input
             type="text"
-            placeholder="Prompt brief: 'that TCS invoice from last month' or 'contracts with liability'..."
+            placeholder="Search documents or ask AI..."
             bind:value={searchQuery}
             on:keydown={(e) => e.key === 'Enter' && handleSearch()}
           />
@@ -966,7 +1118,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
         <div class="status-chip">
           <span class="pulse-indicator"></span>
           <span class="status-label"
-            >{health.status === 'online' ? 'Gemini 3.5 Flash' : 'System Ready'}</span
+            >{health.status === 'online' ? 'AI Engine Ready' : 'System Ready'}</span
           >
         </div>
 
@@ -1038,315 +1190,317 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
 
   <!-- Main Content Area -->
   <main class="content-container">
-    <!-- TAB 1: EXECUTIVE DASHBOARD -->
+    <!-- TAB 1: MINIMALIST DOCUMENTS WORKSPACE (Foxit-Style Clean Interface) -->
     {#if activeTab === 'dashboard'}
       <div class="dashboard-view">
-        {#if currentUser && currentUser.is_guest}
-          <div class="guest-playground-banner glass-card">
-            <div class="banner-badge-row">
-              <span class="banner-pill-pulse">Instant Playground Mode</span>
-              <span class="banner-pill-cyan">Multi-Tenant Isolated Sandbox</span>
-              <span class="banner-pill-purple">Google Gemini 3.5 Flash & Qdrant</span>
-            </div>
-            <div class="banner-content-grid">
-              <div class="banner-text">
-                <h1 class="banner-hero-title">
-                  Cognifolio — Enterprise Cognitive Document Intelligence
-                </h1>
-                <p class="banner-hero-desc">
-                  Zero friction playground: upload PDFs to run real-time key-value extraction,
-                  semantic vector search, automated PII redaction, and multi-document comparative
-                  risk analysis.
-                </p>
-              </div>
-              <div class="banner-actions">
-                <button class="btn-primary" on:click={() => (activeTab = 'upload')}>
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="17 8 12 3 7 8" />
-                    <line x1="12" y1="3" x2="12" y2="15" />
-                  </svg>
-                  Upload PDF to Test
-                </button>
-                <button class="btn-upgrade-glow" on:click={() => openAuthModal('signup')}>
-                  ⚡ Sign Up / Save Data
-                </button>
-              </div>
-            </div>
-          </div>
-        {/if}
-
-        <div
-          class="view-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6"
-        >
-          <div>
-            <h2 class="font-heading text-2xl md:text-3xl font-semibold text-ink">
-              Enterprise Document Intelligence
-            </h2>
-            <p class="subtitle text-sm text-ink-muted mt-1">
-              Overview of indexed contracts, invoices, and automated data extractions
+        <!-- Minimalist Workspace Header -->
+        <div class="workspace-header">
+          <div class="workspace-title-group">
+            <h1 class="workspace-title">Documents Workspace</h1>
+            <p class="workspace-subtitle">
+              Secure AI-indexed vault for contracts, invoices, spreadsheets, and visual scans
             </p>
           </div>
-          <CButton variant="primary" on:click={() => (activeTab = 'upload')}>
-            <CIcon name="upload" size={16} />
-            Add New Document
-          </CButton>
+          <div class="workspace-header-actions">
+            <input
+              type="file"
+              id="dashboard-file-input"
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.doc,.xlsx,.xls,.csv,.txt,.md"
+              on:change={(e) => handleFileUpload(e.target.files[0])}
+              class="hidden"
+            />
+            <CButton variant="primary" on:click={triggerFileInput}>
+              <CIcon name="upload" size={15} />
+              <span>Upload Document</span>
+            </CButton>
+          </div>
         </div>
 
-        <!-- Metric Tiles (Spacious & Modern) -->
-        <div class="metric-tiles-grid my-7 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <CCard
-            spacious={true}
-            interactive={true}
-            className="flex items-center gap-5 min-h-[116px]"
-          >
-            <div
-              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-border-hairline bg-surface-subtle p-3 text-ink shadow-sm"
-            >
-              <CIcon name="document" size={24} />
+        <!-- Sleek Minimal KPI Summary Strip -->
+        <div class="minimal-kpi-bar">
+          <div class="kpi-item">
+            <div class="kpi-icon-wrap">
+              <CIcon name="document" size={18} />
             </div>
-            <div class="flex flex-col">
-              <span class="text-3xl font-bold font-body text-ink leading-tight">
-                {stats?.overview?.total_documents ?? documents.length}
-              </span>
-              <span class="mt-1 text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                Total Documents
-              </span>
-            </div>
-          </CCard>
-
-          <CCard
-            spacious={true}
-            interactive={true}
-            className="flex items-center gap-5 min-h-[116px]"
-          >
-            <div
-              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-status-success-border bg-status-success-bg p-3 text-status-success-text shadow-sm"
-            >
-              <CIcon name="lightning" size={24} />
-            </div>
-            <div class="flex flex-col">
-              <span class="text-3xl font-bold font-body text-ink leading-tight">
-                {stats?.overview?.processed_successfully ?? documents.length}
-              </span>
-              <span class="mt-1 text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                Processed Successfully
-              </span>
-            </div>
-          </CCard>
-
-          <CCard
-            spacious={true}
-            interactive={true}
-            className="flex items-center gap-5 min-h-[116px]"
-          >
-            <div
-              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-status-indigo-border bg-status-indigo-bg p-3 text-status-indigo-text shadow-sm"
-            >
-              <CIcon name="building" size={24} />
-            </div>
-            <div class="flex flex-col">
-              <span class="text-3xl font-bold font-body text-ink leading-tight">
-                {stats?.overview?.total_vendors_identified ?? 0}
-              </span>
-              <span class="mt-1 text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                Vendors Identified
-              </span>
-            </div>
-          </CCard>
-
-          <CCard
-            spacious={true}
-            interactive={true}
-            className="flex items-center gap-5 min-h-[116px]"
-          >
-            <div
-              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[8px] border border-status-warning-border bg-status-warning-bg p-3 text-status-warning-text shadow-sm"
-            >
-              <CIcon name="shield" size={24} />
-            </div>
-            <div class="flex flex-col">
-              <span class="text-3xl font-bold font-body text-ink leading-tight"> Active </span>
-              <span class="mt-1 text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                PII Redaction Engine
-              </span>
-            </div>
-          </CCard>
-        </div>
-
-        <!-- Visual Analytics Cards -->
-        <div class="analytics-row">
-          <div class="glass-card analytics-card">
-            <h3>Document Type Breakdown</h3>
-            <p class="card-subtitle">Classified via Gemini Vision & Heuristic Engine</p>
-            <div class="type-distribution">
-              {#if stats?.charts?.by_type?.labels && stats.charts.by_type.labels.length > 0}
-                {#each stats.charts.by_type.labels as label, i}
-                  {@const val =
-                    stats.charts.by_type.data?.[i] ?? stats.charts.by_type.values?.[i] ?? 0}
-                  {@const totalDocs = stats.overview?.total_documents || documents.length || 1}
-                  <div class="dist-row">
-                    <span class="dist-label">{label}</span>
-                    <div class="bar-track">
-                      <div
-                        class="bar-fill"
-                        style="width: {Math.min(100, Math.round((val / totalDocs) * 100))}%"
-                      ></div>
-                    </div>
-                    <span class="dist-val">{val}</span>
-                  </div>
-                {/each}
-              {:else}
-                <div class="empty-hint">Upload documents to visualize category breakdown</div>
-              {/if}
+            <div class="kpi-data">
+              <span class="kpi-val">{documents.length}</span>
+              <span class="kpi-lbl">Total Documents</span>
             </div>
           </div>
 
-          <div class="glass-card analytics-card">
-            <h3>Vendor Spending / Contract Analytics</h3>
-            <p class="card-subtitle">Aggregated from line items & extracted financial figures</p>
-            <div class="vendor-breakdown">
-              {#if stats?.charts?.vendor_breakdown?.labels?.length || stats?.charts?.by_vendor?.labels?.length}
-                {#each stats?.charts?.vendor_breakdown?.labels || stats?.charts?.by_vendor?.labels || [] as vendor, i}
-                  {@const amt =
-                    stats?.charts?.vendor_breakdown?.data?.[i] ??
-                    stats?.charts?.by_vendor?.values?.[i] ??
-                    0}
-                  <div class="vendor-item">
-                    <div class="vendor-name">🏢 {vendor}</div>
-                    <div class="vendor-amt">
-                      ₹{typeof amt === 'number' ? amt.toLocaleString() : amt}
-                    </div>
-                  </div>
-                {/each}
-              {:else}
-                <div class="empty-hint">
-                  Financial insights will populate upon processing invoices
+          <div class="kpi-divider"></div>
+
+          <div class="kpi-item">
+            <div class="kpi-icon-wrap kpi-success">
+              <CIcon name="lightning" size={18} />
+            </div>
+            <div class="kpi-data">
+              <span class="kpi-val">{totalPages}</span>
+              <span class="kpi-lbl">Pages Analyzed</span>
+            </div>
+          </div>
+
+          <div class="kpi-divider"></div>
+
+          <div class="kpi-item">
+            <div class="kpi-icon-wrap kpi-shield">
+              <CIcon name="shield" size={18} />
+            </div>
+            <div class="kpi-data">
+              <span class="kpi-val">Zero-Trust Active</span>
+              <span class="kpi-lbl">PII & Data Redaction</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Minimalist Drag & Drop Intake Card -->
+        <div class="minimal-intake-card">
+          <div
+            class="minimal-dropzone"
+            role="button"
+            tabindex="0"
+            on:click={triggerFileInput}
+            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && triggerFileInput()}
+          >
+            <div class="dropzone-inner">
+              <div class="dropzone-left-group">
+                <div class="dropzone-icon-box">
+                  <CIcon name="upload" size={20} />
                 </div>
-              {/if}
+                <div class="dropzone-text-group">
+                  <div class="dropzone-main-text">
+                    <strong>Drag & drop documents here</strong>, or
+                    <span class="browse-link">Browse files</span>
+                  </div>
+                  <div class="dropzone-hint">
+                    Direct intake: PDF, Word (DOCX), Excel & CSV (XLSX), Scanned Images (PNG, JPG)
+                    up to 25MB
+                  </div>
+                </div>
+              </div>
+              <div class="dropzone-format-pills">
+                <span class="fmt-tag fmt-pdf">PDF</span>
+                <span class="fmt-tag fmt-word">DOCX</span>
+                <span class="fmt-tag fmt-excel">XLSX</span>
+                <span class="fmt-tag fmt-img">IMAGES</span>
+              </div>
             </div>
-          </div>
-        </div>
-
-        <!-- Document Library Table -->
-        <div class="glass-card table-card">
-          <div class="table-header-row">
-            <h3>Indexed Document Repository ({documents.length})</h3>
-            <button class="btn-secondary" on:click={refreshAll}>↻ Refresh</button>
           </div>
 
           {#if documents.length === 0}
-            <div class="empty-state">
-              <div class="empty-icon">📂</div>
-              <h4>No documents indexed yet</h4>
-              <p>Upload a PDF, contract, or invoice to begin extracting intelligence</p>
-              <div class="sample-actions">
-                <button class="btn-primary" on:click={() => uploadSample(sampleDocuments[0])}>
-                  + Load Demo TCS Invoice
-                </button>
-                <button class="btn-secondary" on:click={() => uploadSample(sampleDocuments[1])}>
-                  + Load Demo Master Services Agreement
-                </button>
-              </div>
+            <div class="demo-samples-row">
+              <span class="demo-label">Quick Start Demo:</span>
+              <button class="demo-chip-btn" on:click={() => uploadSample(sampleDocuments[0])}>
+                + Load Demo TCS Invoice
+              </button>
+              <button class="demo-chip-btn" on:click={() => uploadSample(sampleDocuments[1])}>
+                + Load Demo MSA Contract
+              </button>
+            </div>
+          {/if}
+        </div>
+
+        <!-- Document Vault Repository (Foxit-Style Clean Table) -->
+        <div class="vault-container">
+          <div class="vault-toolbar">
+            <div class="vault-filter-tabs">
+              <button
+                class="vault-tab-btn"
+                class:active={docFilter === 'all'}
+                on:click={() => (docFilter = 'all')}
+              >
+                All <span class="tab-count">{documents.length}</span>
+              </button>
+              <button
+                class="vault-tab-btn"
+                class:active={docFilter === 'pdf'}
+                on:click={() => (docFilter = 'pdf')}
+              >
+                PDFs <span class="tab-count">{pdfCount}</span>
+              </button>
+              <button
+                class="vault-tab-btn"
+                class:active={docFilter === 'spreadsheet'}
+                on:click={() => (docFilter = 'spreadsheet')}
+              >
+                Spreadsheets <span class="tab-count">{sheetCount}</span>
+              </button>
+              <button
+                class="vault-tab-btn"
+                class:active={docFilter === 'word'}
+                on:click={() => (docFilter = 'word')}
+              >
+                Word <span class="tab-count">{docxCount}</span>
+              </button>
+              <button
+                class="vault-tab-btn"
+                class:active={docFilter === 'image'}
+                on:click={() => (docFilter = 'image')}
+              >
+                Images <span class="tab-count">{imgCount}</span>
+              </button>
+            </div>
+
+            <div class="vault-search-box">
+              <CIcon name="search" size={14} className="text-gray-400" />
+              <input type="text" placeholder="Filter files..." bind:value={docSearch} />
+              {#if docSearch}
+                <button class="clear-search-btn" on:click={() => (docSearch = '')}>✕</button>
+              {/if}
+            </div>
+          </div>
+
+          {#if filteredDocuments.length === 0}
+            <div class="vault-empty-state">
+              {#if docSearch || docFilter !== 'all'}
+                <div class="empty-icon">🔍</div>
+                <h4>No matching documents found</h4>
+                <p>Try adjusting your search query or file type filter</p>
+                <div class="mt-3">
+                  <CButton
+                    variant="chip"
+                    size="sm"
+                    on:click={() => {
+                      docSearch = '';
+                      docFilter = 'all';
+                    }}
+                  >
+                    Reset Filter
+                  </CButton>
+                </div>
+              {:else}
+                <div class="empty-icon">📂</div>
+                <h4>Your workspace is empty</h4>
+                <p>Upload a PDF, contract, spreadsheet, or scan to begin extracting intelligence</p>
+                <div class="sample-actions mt-4">
+                  <CButton variant="primary" on:click={triggerFileInput}>
+                    <CIcon name="upload" size={14} />
+                    Upload First Document
+                  </CButton>
+                  <CButton variant="secondary" on:click={() => uploadSample(sampleDocuments[0])}>
+                    Load Demo Invoice
+                  </CButton>
+                </div>
+              {/if}
             </div>
           {:else}
-            <div class="table-wrapper">
-              <table class="doc-table">
+            <div class="vault-table-wrap">
+              <table class="vault-table">
                 <thead>
                   <tr>
-                    <th>Filename</th>
-                    <th>Type</th>
-                    <th>Pages / Size</th>
-                    <th>Status</th>
-                    <th>Uploaded</th>
-                    <th>Actions</th>
+                    <th class="th-doc">Document Name</th>
+                    <th class="th-type">Type</th>
+                    <th class="th-size">Size & Pages</th>
+                    <th class="th-date">Uploaded</th>
+                    <th class="th-status">Status</th>
+                    <th class="th-actions text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {#each documents as doc}
+                  {#each paginatedDocuments as doc}
                     {@const fmtInfo = getDocFormatInfo(doc.file_type)}
-                    <tr>
-                      <td class="name-cell">
-                        <div class="flex items-center gap-3">
-                          <div
-                            class="w-8 h-8 rounded-lg bg-sand/60 flex items-center justify-center text-charcoal/70 flex-shrink-0"
+                    <tr class="vault-row">
+                      <td class="td-doc">
+                        <div class="doc-title-cell">
+                          <span class="doc-fmt-badge {fmtInfo.badgeClass}">{fmtInfo.label}</span>
+                          <button
+                            class="doc-title-link"
+                            on:click={() => viewDocumentDetail(doc.id)}
+                            title={doc.original_filename}
                           >
-                            <CIcon name="document" size={16} />
-                          </div>
-                          <div class="file-details">
-                            <div class="flex items-center gap-2">
-                              <button
-                                class="filename-btn"
-                                on:click={() => viewDocumentDetail(doc.id)}
-                                >{doc.original_filename}</button
-                              >
-                              <span class="fmt-inline-tag {fmtInfo.badgeClass}"
-                                >{fmtInfo.label}</span
-                              >
-                            </div>
-                            <span class="file-summary"
-                              >{doc.insights
-                                ? doc.insights.summary.slice(0, 75) + '...'
-                                : 'Processing...'}</span
-                            >
-                          </div>
+                            {doc.original_filename}
+                          </button>
                         </div>
                       </td>
-                      <td>
-                        <CBadge variant="indigo">
-                          {doc.insights ? doc.insights.document_type : doc.file_type}
-                        </CBadge>
+                      <td class="td-type">
+                        <span class="type-pill">
+                          {doc.insights
+                            ? doc.insights.document_type
+                            : (doc.file_type || 'Unknown').toUpperCase()}
+                        </span>
                       </td>
-                      <td>
+                      <td class="td-size font-mono">
                         {doc.file_type === 'xlsx' || doc.file_type === 'xls'
-                          ? `${doc.page_count} sht`
-                          : `${doc.page_count} pg`}
-                        ({Math.round(doc.file_size_bytes / 1024)} KB)
+                          ? `${doc.page_count} sheets`
+                          : `${doc.page_count} pgs`} • {Math.round(doc.file_size_bytes / 1024)} KB
                       </td>
-                      <td>
-                        <CBadge variant="emerald">Ready</CBadge>
+                      <td class="td-date text-muted font-mono">
+                        {new Date(doc.uploaded_at).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
                       </td>
-                      <td class="date-cell">{new Date(doc.uploaded_at).toLocaleDateString()}</td>
-                      <td class="actions-cell">
-                        <div class="flex items-center gap-1.5">
-                          <CButton
-                            variant="action"
-                            size="sm"
-                            title="Deep Dive Viewer"
+                      <td class="td-status">
+                        <span class="status-ready-pill">
+                          <span class="status-dot"></span> Ready
+                        </span>
+                      </td>
+                      <td class="td-actions">
+                        <div class="action-btn-row">
+                          <button
+                            class="row-action-btn primary"
+                            title="Open in Document Viewer"
                             on:click={() => viewDocumentDetail(doc.id)}
                           >
-                            <span>Deep Dive →</span>
-                          </CButton>
-                          <CButton
-                            variant="action"
-                            size="sm"
-                            title="Compare with another revision"
+                            Open
+                          </button>
+                          <button
+                            class="row-action-btn secondary"
+                            title="Compare revision diff"
                             on:click={() => openCompareWithDoc(doc.id)}
                           >
                             <CIcon name="compare" size={13} />
-                            <span>Compare</span>
-                          </CButton>
-                          <CButton
-                            variant="danger"
-                            size="sm"
+                          </button>
+                          <button
+                            class="row-action-btn delete"
                             title="Delete document"
                             on:click={() => promptDeleteDocument(doc)}
                           >
                             <CIcon name="trash" size={13} />
-                          </CButton>
+                          </button>
                         </div>
                       </td>
                     </tr>
                   {/each}
                 </tbody>
               </table>
+            </div>
+
+            <!-- Minimalist Pagination Bar -->
+            <div class="pagination-bar">
+              <span class="pagination-info">
+                Showing <strong
+                  >{(docPage - 1) * docPageSize + 1}–{Math.min(
+                    docPage * docPageSize,
+                    filteredDocuments.length,
+                  )}</strong
+                >
+                of <strong>{filteredDocuments.length}</strong> documents
+              </span>
+              <div class="pagination-controls">
+                <button
+                  type="button"
+                  class="pagination-btn"
+                  disabled={docPage <= 1}
+                  on:click={() => docPage--}
+                  aria-label="Previous Page"
+                >
+                  &larr; Prev
+                </button>
+                <span class="pagination-page-indicator">
+                  Page <strong>{docPage}</strong> of <strong>{docTotalPages}</strong>
+                </span>
+                <button
+                  type="button"
+                  class="pagination-btn"
+                  disabled={docPage >= docTotalPages}
+                  on:click={() => docPage++}
+                  aria-label="Next Page"
+                >
+                  Next &rarr;
+                </button>
+              </div>
             </div>
           {/if}
         </div>
@@ -1358,7 +1512,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
       <div class="upload-view">
         <div class="view-header">
           <div>
-            <h2>Upload & Document Processing</h2>
+            <h2>Upload &amp; Document Processing</h2>
             <p class="subtitle">
               Extract intelligence from invoices, contracts, statements, or scanned reports
             </p>
@@ -1476,7 +1630,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                   {/if}
                 </div>
                 <div class="step-info">
-                  <h4>Gemini Flash Multimodal Extraction</h4>
+                  <h4>Multimodal Intelligence Extraction</h4>
                   <p>Executive summary, structured entities, risk clauses, line-item pricing</p>
                 </div>
                 {#if uploadStep === 3}<span class="spinner"></span>{/if}
@@ -1613,8 +1767,8 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
               query "<em class="text-ink">{searchQuery}</em>":
             </div>
 
-            <div class="space-y-4">
-              {#each searchResults as item}
+            <div class="search-results-scroll space-y-4">
+              {#each paginatedSearchResults as item}
                 <div
                   role="button"
                   tabindex="0"
@@ -1672,6 +1826,42 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                   </CCard>
                 </div>
               {/each}
+            </div>
+
+            <!-- Minimalist Pagination Bar -->
+            <div class="pagination-bar standalone mt-4">
+              <span class="pagination-info">
+                Showing <strong
+                  >{(searchPage - 1) * searchPageSize + 1}–{Math.min(
+                    searchPage * searchPageSize,
+                    searchResults.length,
+                  )}</strong
+                >
+                of <strong>{searchResults.length}</strong> results
+              </span>
+              <div class="pagination-controls">
+                <button
+                  type="button"
+                  class="pagination-btn"
+                  disabled={searchPage <= 1}
+                  on:click={() => searchPage--}
+                  aria-label="Previous Page"
+                >
+                  &larr; Prev
+                </button>
+                <span class="pagination-page-indicator">
+                  Page <strong>{searchPage}</strong> of <strong>{searchTotalPages}</strong>
+                </span>
+                <button
+                  type="button"
+                  class="pagination-btn"
+                  disabled={searchPage >= searchTotalPages}
+                  on:click={() => searchPage++}
+                  aria-label="Next Page"
+                >
+                  Next &rarr;
+                </button>
+              </div>
             </div>
           {/if}
         </div>
@@ -1966,46 +2156,48 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                       <h3>Extracted Line Items</h3>
                       <span class="hint-tag">Click row to locate</span>
                     </div>
-                    <table class="line-items-table">
-                      <thead>
-                        <tr>
-                          <th>Description</th>
-                          <th>Qty</th>
-                          <th>Amount</th>
-                          <th style="text-align: right;">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {#each selectedDoc.insights.line_items as item}
-                          <tr
-                            class="clickable-line-row {activeHighlightKey === item.description
-                              ? 'active-target'
-                              : ''}"
-                            on:click={() => locateLineItem(item)}
-                          >
-                            <td class="line-desc-cell">
-                              <span class="line-desc-text">{item.description}</span>
-                            </td>
-                            <td class="qty-cell">{item.quantity || 1}</td>
-                            <td class="amt">₹{Number(item.amount).toLocaleString()}</td>
-                            <td class="locate-action-cell" style="text-align: right;">
-                              <button
-                                type="button"
-                                class="line-locate-btn"
-                                on:click|stopPropagation={() => locateLineItem(item)}
-                                title="Click to jump to line item in document"
-                              >
-                                {#if item.box_2d}
-                                  📍 Pin →
-                                {:else}
-                                  🔍 Locate →
-                                {/if}
-                              </button>
-                            </td>
+                    <div class="line-items-scroll-wrap">
+                      <table class="line-items-table">
+                        <thead>
+                          <tr>
+                            <th>Description</th>
+                            <th>Qty</th>
+                            <th>Amount</th>
+                            <th style="text-align: right;">Action</th>
                           </tr>
-                        {/each}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {#each selectedDoc.insights.line_items as item}
+                            <tr
+                              class="clickable-line-row {activeHighlightKey === item.description
+                                ? 'active-target'
+                                : ''}"
+                              on:click={() => locateLineItem(item)}
+                            >
+                              <td class="line-desc-cell">
+                                <span class="line-desc-text">{item.description}</span>
+                              </td>
+                              <td class="qty-cell">{item.quantity || 1}</td>
+                              <td class="amt">₹{Number(item.amount).toLocaleString()}</td>
+                              <td class="locate-action-cell" style="text-align: right;">
+                                <button
+                                  type="button"
+                                  class="line-locate-btn"
+                                  on:click|stopPropagation={() => locateLineItem(item)}
+                                  title="Click to jump to line item in document"
+                                >
+                                  {#if item.box_2d}
+                                    📍 Pin →
+                                  {:else}
+                                    🔍 Locate →
+                                  {/if}
+                                </button>
+                              </td>
+                            </tr>
+                          {/each}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 {/if}
               {:else if viewerRightTab === 'chat'}
@@ -2016,7 +2208,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                       <div class="chat-ai-avatar">✨</div>
                       <div>
                         <h4>Cognifolio Assistant</h4>
-                        <span class="chat-model-badge">Gemini 3.5 Flash · Document Grounded</span>
+                        <span class="chat-model-badge">Document Grounded Intelligence</span>
                       </div>
                     </div>
                     <button class="chat-clear-btn" on:click={clearChat} title="Reset conversation">
@@ -2108,9 +2300,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                           <div class="typing-indicator">
                             <span></span><span></span><span></span>
                           </div>
-                          <span class="typing-text"
-                            >Gemini 3.5 Flash is analyzing document context...</span
-                          >
+                          <span class="typing-text">Analyzing document context...</span>
                         </div>
                       </div>
                     {/if}
@@ -2151,15 +2341,15 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
       </div>
     {/if}
 
-    <!-- TAB 5: COMPLIANCE, PII REDACTION & AUDIT TRAILS (OPTION 3) -->
+    <!-- TAB 5: COMPLIANCE, PII REDACTION & AUDIT TRAILS -->
     {#if activeTab === 'privacy'}
       <div class="privacy-view">
-        <div class="view-header">
+        <div class="compliance-header">
           <div>
-            <h2>Enterprise Compliance & Audit Trails</h2>
-            <p class="subtitle">
-              SOC2 Type II, GDPR Article 17, and HIPAA verified immutable audit logging and
-              real-time PII redaction.
+            <h2 class="compliance-title">Audit &amp; Compliance</h2>
+            <p class="compliance-subtitle">
+              SOC2 Type II &amp; GDPR Article 17 cryptographically verified audit records and
+              zero-trust sanitization.
             </p>
           </div>
           <div class="compliance-header-actions flex flex-wrap gap-2">
@@ -2181,373 +2371,298 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
             </CButton>
             <CButton variant="primary" loading={isLoadingCompliance} on:click={refreshCompliance}>
               <CIcon name="refresh" size={15} />
-              <span>Refresh Stream</span>
+              <span>Refresh</span>
             </CButton>
           </div>
         </div>
 
-        <!-- 4 Top KPI Cards -->
-        <div class="compliance-kpi-grid">
-          <div class="glass-card comp-kpi-card">
-            <div class="kpi-top">
-              <span class="kpi-title">Compliance Posture</span>
-              <span class="badge badge-emerald">Verified</span>
-            </div>
-            <div class="kpi-main">
-              <span class="kpi-number text-emerald"
+        <!-- Sleek 3-Metric KPI Bar (Foxit Minimalist Style) -->
+        <div class="compliance-kpi-bar">
+          <div class="comp-kpi-item">
+            <span class="comp-kpi-label">Compliance Posture</span>
+            <div class="comp-kpi-val-row">
+              <span class="comp-kpi-value text-emerald"
                 >{complianceStats?.compliance_score || 99.2}%</span
               >
-              <span class="kpi-sub">SOC2 Type II & GDPR Ready</span>
+              <span class="badge badge-emerald">Verified</span>
             </div>
-            <div class="kpi-footer-progress">
-              <div
-                class="progress-bar"
-                style="width: {complianceStats?.compliance_score || 99.2}%;"
-              ></div>
-            </div>
+            <span class="comp-kpi-desc">SOC2 Type II &amp; GDPR Art. 17 Certified</span>
           </div>
 
-          <div class="glass-card comp-kpi-card">
-            <div class="kpi-top">
-              <span class="kpi-title">Total PII Entities Masked</span>
+          <div class="comp-kpi-divider"></div>
+
+          <div class="comp-kpi-item">
+            <span class="comp-kpi-label">Valid Audit Trail</span>
+            <div class="comp-kpi-val-row">
+              <span class="comp-kpi-value"
+                >{complianceStats?.valid_audit_events ||
+                  complianceStats?.total_audit_events ||
+                  auditLogs.length}</span
+              >
+              <span class="comp-kpi-subtag">Events</span>
+            </div>
+            <span class="comp-kpi-desc">Cryptographic SHA-256 Verified Ledger</span>
+          </div>
+
+          <div class="comp-kpi-divider"></div>
+
+          <div class="comp-kpi-item">
+            <span class="comp-kpi-label">PII Entities Masked</span>
+            <div class="comp-kpi-val-row">
+              <span class="comp-kpi-value text-purple"
+                >{complianceStats?.total_pii_masked || 79}</span
+              >
               <span class="badge badge-purple">Zero Leakage</span>
             </div>
-            <div class="kpi-main">
-              <span class="kpi-number text-purple">{complianceStats?.total_pii_masked || 79}</span>
-              <span class="kpi-sub">Tokens sanitized pre-AI</span>
-            </div>
-            <div class="kpi-pills-row">
-              <span class="mini-pill">Aadhaar: {complianceStats?.pii_breakdown?.aadhaar || 0}</span>
-              <span class="mini-pill">PAN: {complianceStats?.pii_breakdown?.pan || 0}</span>
-              <span class="mini-pill">Emails: {complianceStats?.pii_breakdown?.email || 0}</span>
-            </div>
+            <span class="comp-kpi-desc">In-memory client sanitization pre-AI</span>
           </div>
+        </div>
 
-          <div class="glass-card comp-kpi-card">
-            <div class="kpi-top">
-              <span class="kpi-title">Immutable Audit Events</span>
-              <span class="pulse-indicator-live">
-                <span class="pulse-dot"></span> Active Stream
-              </span>
-            </div>
-            <div class="kpi-main">
-              <span class="kpi-number text-cyan"
-                >{complianceStats?.total_audit_events || auditLogs.length}</span
+        <!-- Active PII Guardrails Strip (Minimalist, compact chip inventory) -->
+        <div class="guardrails-strip">
+          <div class="guardrails-header">
+            <span class="guardrails-title">Active Sanitization Guardrails</span>
+            <span class="guardrails-subtitle"
+              >In-memory masking &amp; physical PDF black-box overlays</span
+            >
+          </div>
+          <div class="guardrails-chips">
+            <div class="guardrail-chip">
+              <span class="chip-name">🪪 Aadhaar</span>
+              <span class="chip-count font-mono"
+                >{complianceStats?.pii_breakdown?.aadhaar || 0}</span
               >
-              <span class="kpi-sub">Cryptographic SHA-256 logs</span>
             </div>
-            <div class="kpi-footer-text">100% action traceability</div>
-          </div>
-
-          <div class="glass-card comp-kpi-card">
-            <div class="kpi-top">
-              <span class="kpi-title">Data Retention Policy</span>
-              <span class="badge badge-amber">TTL Enforced</span>
+            <div class="guardrail-chip">
+              <span class="chip-name">💳 PAN Card</span>
+              <span class="chip-count font-mono">{complianceStats?.pii_breakdown?.pan || 0}</span>
             </div>
-            <div class="kpi-main">
-              <span class="kpi-number text-amber">90 Days</span>
-              <span class="kpi-sub">Auto-purge raw files</span>
+            <div class="guardrail-chip">
+              <span class="chip-name">🛡️ US SSN</span>
+              <span class="chip-count font-mono">{complianceStats?.pii_breakdown?.ssn || 0}</span>
             </div>
-            <div class="kpi-footer-text">GDPR Article 17 Compliant</div>
-          </div>
-        </div>
-
-        <!-- PII Classification & Guardrails Matrix -->
-        <div class="glass-card pii-matrix-card">
-          <div class="matrix-header">
-            <div>
-              <h3>Active PII Sanitization & Guardrails Inventory</h3>
-              <p class="matrix-desc">
-                Sensitive personally identifiable data is intercepted, masked in memory with
-                replacement tokens, and physically black-boxed in downloadable PDFs before storage.
-              </p>
+            <div class="guardrail-chip">
+              <span class="chip-name">📧 Emails</span>
+              <span class="chip-count font-mono">{complianceStats?.pii_breakdown?.email || 0}</span>
             </div>
-            <span class="badge badge-emerald">Real-time Regex + PyMuPDF Engine</span>
-          </div>
-
-          <div class="pii-chips-grid">
-            <div class="pii-class-box">
-              <div class="box-top">
-                <span class="box-icon">🪪</span>
-                <span class="box-name">Indian Aadhaar (UIDAI)</span>
-                <span class="box-count">{complianceStats?.pii_breakdown?.aadhaar || 0}</span>
-              </div>
-              <div class="box-rule">
-                Pattern: 12-digit formatted \b[2-9]\d{3}[ -]?\d{4}[ -]?\d{4}\b
-              </div>
-              <div class="box-token">Token: [REDACTED_AADHAAR]</div>
+            <div class="guardrail-chip">
+              <span class="chip-name">📱 Phone Numbers</span>
+              <span class="chip-count font-mono">{complianceStats?.pii_breakdown?.phone || 0}</span>
             </div>
-
-            <div class="pii-class-box">
-              <div class="box-top">
-                <span class="box-icon">💳</span>
-                <span class="box-name">PAN & Tax IDs</span>
-                <span class="box-count">{complianceStats?.pii_breakdown?.pan || 0}</span>
-              </div>
-              <div class="box-rule">Pattern: 5 letters + 4 digits + 1 letter</div>
-              <div class="box-token">Token: [REDACTED_PAN]</div>
+            <div class="guardrail-chip">
+              <span class="chip-name">🏦 Bank Accounts</span>
+              <span class="chip-count font-mono"
+                >{complianceStats?.pii_breakdown?.bank_account || 0}</span
+              >
             </div>
-
-            <div class="pii-class-box">
-              <div class="box-top">
-                <span class="box-icon">📧</span>
-                <span class="box-name">Corporate & Personal Emails</span>
-                <span class="box-count">{complianceStats?.pii_breakdown?.email || 0}</span>
-              </div>
-              <div class="box-rule">Pattern: RFC-5322 Email regex pattern</div>
-              <div class="box-token">Token: [REDACTED_EMAIL]</div>
-            </div>
-
-            <div class="pii-class-box">
-              <div class="box-top">
-                <span class="box-icon">📱</span>
-                <span class="box-name">Direct Phone Numbers</span>
-                <span class="box-count">{complianceStats?.pii_breakdown?.phone || 0}</span>
-              </div>
-              <div class="box-rule">Pattern: E.164 + Indian 10-digit mobile standards</div>
-              <div class="box-token">Token: [REDACTED_PHONE]</div>
-            </div>
-
-            <div class="pii-class-box">
-              <div class="box-top">
-                <span class="box-icon">🏦</span>
-                <span class="box-name">Bank Account Numbers</span>
-                <span class="box-count">{complianceStats?.pii_breakdown?.bank_account || 0}</span>
-              </div>
-              <div class="box-rule">Pattern: A/C tagged 9 to 18 contiguous digits</div>
-              <div class="box-token">Token: [REDACTED_ACCOUNT]</div>
-            </div>
-
-            <div class="pii-class-box">
-              <div class="box-top">
-                <span class="box-icon">💳</span>
-                <span class="box-name">Payment Cards (Visa/MC/Amex)</span>
-                <span class="box-count">{complianceStats?.pii_breakdown?.credit_card || 0}</span>
-              </div>
-              <div class="box-rule">Pattern: Luhn-validated 13 to 19 digit card numbers</div>
-              <div class="box-token">Token: [REDACTED_CARD]</div>
+            <div class="guardrail-chip">
+              <span class="chip-name">💳 Payment Cards</span>
+              <span class="chip-count font-mono"
+                >{complianceStats?.pii_breakdown?.credit_card || 0}</span
+              >
             </div>
           </div>
         </div>
 
-        <!-- Interactive Audit Trail Table -->
-        <div class="glass-card audit-trail-card">
-          <div class="audit-trail-header">
-            <div>
-              <h3>Immutable Audit Log Explorer</h3>
-              <p class="audit-sub">
-                Search and inspect all system interactions, downloads, uploads, and automated
-                redaction events.
-              </p>
+        <!-- Streamlined Audit Ledger Section -->
+        <div class="audit-ledger-card">
+          <div class="audit-ledger-toolbar">
+            <div class="audit-search-box">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Filter audit records by document or action..."
+                bind:value={auditSearchQuery}
+                on:input={() => refreshCompliance()}
+              />
             </div>
-            <div class="audit-filters-bar">
-              <!-- Search in logs -->
-              <div class="audit-search-input-wrapper">
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  ><circle cx="11" cy="11" r="8" /><line
-                    x1="21"
-                    y1="21"
-                    x2="16.65"
-                    y2="16.65"
-                  /></svg
-                >
-                <input
-                  type="text"
-                  placeholder="Filter by filename, actor, or ID..."
-                  bind:value={auditSearchQuery}
-                  on:input={() => refreshCompliance()}
-                />
-              </div>
 
-              <!-- Filter Buttons -->
-              <div class="filter-pills-row">
-                <button
-                  class="filter-pill {auditFilter === 'all' ? 'active' : ''}"
-                  on:click={() => handleAuditFilterChange('all')}
-                >
-                  All ({complianceStats?.total_audit_events || auditLogs.length})
-                </button>
-                <button
-                  class="filter-pill {auditFilter === 'uploaded' ? 'active' : ''}"
-                  on:click={() => handleAuditFilterChange('uploaded')}
-                >
-                  Uploads ({complianceStats?.action_breakdown?.uploaded || 0})
-                </button>
-                <button
-                  class="filter-pill {auditFilter === 'viewed' ? 'active' : ''}"
-                  on:click={() => handleAuditFilterChange('viewed')}
-                >
-                  Views
-                </button>
-                <button
-                  class="filter-pill {auditFilter === 'searched' ? 'active' : ''}"
-                  on:click={() => handleAuditFilterChange('searched')}
-                >
-                  Searches
-                </button>
-                <button
-                  class="filter-pill {auditFilter === 'redacted' ? 'active' : ''}"
-                  on:click={() => handleAuditFilterChange('redacted')}
-                >
-                  Redactions
-                </button>
-              </div>
+            <div class="audit-filter-pills">
+              <button
+                class="audit-pill {auditFilter === 'valid' ? 'active' : ''}"
+                on:click={() => handleAuditFilterChange('valid')}
+              >
+                Valid Events ({complianceStats?.valid_audit_events ||
+                  complianceStats?.total_audit_events ||
+                  auditLogs.length})
+              </button>
+              <button
+                class="audit-pill {auditFilter === 'uploaded' ? 'active' : ''}"
+                on:click={() => handleAuditFilterChange('uploaded')}
+              >
+                Uploads ({complianceStats?.action_breakdown?.uploaded || 0})
+              </button>
+              <button
+                class="audit-pill {auditFilter === 'redacted' ? 'active' : ''}"
+                on:click={() => handleAuditFilterChange('redacted')}
+              >
+                Redactions ({complianceStats?.action_breakdown?.redacted || 0})
+              </button>
+              <button
+                class="audit-pill {auditFilter === 'deleted' ? 'active' : ''}"
+                on:click={() => handleAuditFilterChange('deleted')}
+              >
+                Purges ({complianceStats?.action_breakdown?.deleted || 0})
+              </button>
+              <button
+                class="audit-pill {auditFilter === 'exported' ? 'active' : ''}"
+                on:click={() => handleAuditFilterChange('exported')}
+              >
+                Exports ({complianceStats?.action_breakdown?.exported || 0})
+              </button>
+              <button
+                class="audit-pill {auditFilter === 'all' ? 'active' : ''}"
+                on:click={() => handleAuditFilterChange('all')}
+              >
+                All Activities
+              </button>
             </div>
           </div>
 
-          <!-- Audit Table -->
-          <div class="audit-table-wrapper">
+          <!-- Minimalist Audit Table -->
+          <div class="audit-table-container">
             {#if isLoadingCompliance}
               <div class="audit-loading">
                 <div class="spinner"></div>
-                <span>Fetching verified audit logs from PostgreSQL...</span>
+                <span>Loading verified compliance records...</span>
               </div>
             {:else if auditLogs.length === 0}
               <div class="audit-empty">
-                <span>No audit events match the selected criteria.</span>
+                <span>No compliance records found matching current filter.</span>
               </div>
             {:else}
-              <table class="audit-table">
-                <thead>
-                  <tr>
-                    <th>Timestamp (UTC)</th>
-                    <th>Actor / Identity</th>
-                    <th>Event Action</th>
-                    <th>Target Resource</th>
-                    <th>Security & PII Context</th>
-                    <th>Verification</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each auditLogs as log}
+              <div class="audit-table-wrap">
+                <table class="audit-table">
+                  <thead>
                     <tr>
-                      <td class="col-time font-mono">
-                        {formatAuditTime(log.created_at)}
-                      </td>
-                      <td class="col-actor">
-                        <div class="actor-cell">
-                          <span class="actor-avatar">👤</span>
-                          <div>
-                            <div class="actor-name">{log.actor_name || 'Demo Analyst'}</div>
-                            <div class="actor-ip font-mono">{log.ip_address || '127.0.0.1'}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td class="col-action">
-                        {#if log.action === 'uploaded'}
-                          <span class="action-tag tag-uploaded">⬆ Uploaded</span>
-                        {:else if log.action === 'viewed'}
-                          <span class="action-tag tag-viewed">👁 Viewed</span>
-                        {:else if log.action === 'viewed_redacted'}
-                          <span class="action-tag tag-redacted">🛡️ Viewed Redacted</span>
-                        {:else if log.action === 'searched'}
-                          <span class="action-tag tag-searched">🔍 Vector Search</span>
-                        {:else if log.action === 'redacted'}
-                          <span class="action-tag tag-redacted">✂ Redacted</span>
-                        {:else if log.action === 'deleted'}
-                          <span class="action-tag tag-deleted">✕ Purged</span>
-                        {:else if log.action === 'exported'}
-                          <span class="action-tag tag-exported">⬇ Exported</span>
-                        {:else}
-                          <span class="action-tag tag-generic">{log.action}</span>
-                        {/if}
-                      </td>
-                      <td class="col-resource">
-                        <div class="resource-cell">
-                          <span class="res-filename">
-                            {log.metadata?.filename ||
-                              log.target_id ||
-                              log.target_type ||
-                              'System Event'}
-                          </span>
-                          {#if log.target_id}
-                            <span class="res-id font-mono">{log.target_id.slice(0, 8)}...</span>
-                          {/if}
-                        </div>
-                      </td>
-                      <td class="col-meta">
-                        {#if log.metadata?.pii_redacted && Object.keys(log.metadata.pii_redacted).length > 0}
-                          <div class="meta-pii-chips">
-                            {#each Object.entries(log.metadata.pii_redacted) as [k, cnt]}
-                              <span class="mini-meta-badge">{cnt} {k}</span>
-                            {/each}
-                          </div>
-                        {:else if log.metadata?.query}
-                          <span class="meta-query font-mono"
-                            >"{log.metadata.query}" ({log.metadata.matches_found || 0} hits)</span
-                          >
-                        {:else}
-                          <span class="text-dim">Standard Audit Record</span>
-                        {/if}
-                      </td>
-                      <td class="col-verify">
-                        <span class="verify-badge">
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="3"><polyline points="20 6 9 17 4 12" /></svg
-                          >
-                          SHA-256 Valid
-                        </span>
-                      </td>
+                      <th>Timestamp</th>
+                      <th>Action</th>
+                      <th>Target Document</th>
+                      <th>Compliance Impact</th>
+                      <th>Actor</th>
+                      <th>Integrity</th>
                     </tr>
-                  {/each}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {#each paginatedAuditLogs as log}
+                      {@const actInfo = getAuditActionInfo(log.action)}
+                      <tr>
+                        <td class="col-time font-mono">
+                          {formatAuditTime(log.created_at)}
+                        </td>
+                        <td class="col-action">
+                          <span class="action-tag {actInfo.badgeClass}">{actInfo.label}</span>
+                        </td>
+                        <td class="col-resource">
+                          <span
+                            class="res-filename"
+                            title={log.metadata?.filename || log.target_id || 'System Asset'}
+                          >
+                            {log.metadata?.filename ||
+                              (log.target_id ? log.target_id.slice(0, 8) + '...' : 'System Ledger')}
+                          </span>
+                        </td>
+                        <td class="col-impact">
+                          <span class="impact-text">{getAuditImpactSummary(log)}</span>
+                        </td>
+                        <td class="col-actor">
+                          <span class="actor-text">{log.actor_name || 'Demo Analyst'}</span>
+                        </td>
+                        <td class="col-verify">
+                          <span class="verify-badge">
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2.5"
+                            >
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                            SHA-256
+                          </span>
+                        </td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Minimalist Pagination Bar -->
+              <div class="pagination-bar">
+                <span class="pagination-info">
+                  Showing <strong
+                    >{(auditPage - 1) * auditPageSize + 1}–{Math.min(
+                      auditPage * auditPageSize,
+                      auditLogs.length,
+                    )}</strong
+                  >
+                  of <strong>{auditLogs.length}</strong> records
+                </span>
+                <div class="pagination-controls">
+                  <button
+                    type="button"
+                    class="pagination-btn"
+                    disabled={auditPage <= 1}
+                    on:click={() => auditPage--}
+                    aria-label="Previous Page"
+                  >
+                    &larr; Prev
+                  </button>
+                  <span class="pagination-page-indicator">
+                    Page <strong>{auditPage}</strong> of <strong>{auditTotalPages}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    class="pagination-btn"
+                    disabled={auditPage >= auditTotalPages}
+                    on:click={() => auditPage++}
+                    aria-label="Next Page"
+                  >
+                    Next &rarr;
+                  </button>
+                </div>
+              </div>
             {/if}
           </div>
         </div>
 
-        <!-- Compliance Frameworks & GDPR Danger Zone -->
-        <div class="compliance-bottom-grid">
-          <div class="glass-card compliance-framework-card">
-            <div class="framework-header">
-              <span class="priv-icon emerald">📜</span>
-              <h3>Regulatory Framework Compliance Status</h3>
+        <!-- Compliance Governance & Data Retention Bar -->
+        <div class="compliance-footer-grid">
+          <div class="governance-card">
+            <div class="gov-header">
+              <span class="gov-icon">🛡️</span>
+              <span class="gov-title">Verified Regulatory Frameworks</span>
             </div>
-            <div class="frameworks-list">
-              {#each complianceStats?.frameworks || [] as fw}
-                <div class="framework-item">
-                  <div class="fw-left">
-                    <strong>{fw.framework}</strong>
-                    <span class="fw-control">{fw.control}</span>
-                  </div>
-                  <span class="badge badge-emerald">✓ {fw.status}</span>
-                </div>
-              {/each}
+            <div class="gov-frameworks">
+              <span class="gov-pill"><span class="check">✓</span> SOC2 Type II</span>
+              <span class="gov-pill"><span class="check">✓</span> GDPR Article 17</span>
+              <span class="gov-pill"><span class="check">✓</span> HIPAA Security Rule</span>
+              <span class="gov-pill"><span class="check">✓</span> ISO 27001 A.12.4</span>
             </div>
           </div>
 
-          <div class="glass-card compliance-danger-card">
-            <div class="framework-header">
-              <span class="priv-icon rose">⚠️</span>
-              <h3>GDPR Article 17: Right to Erasure</h3>
-            </div>
-            <p>
-              Instantly purge all stored documents, extracted intelligence, and vector embeddings in
-              Qdrant and PostgreSQL:
-            </p>
-            <div class="retention-info-box">
-              <div class="info-row">
-                <span>Active Retention Window:</span>
-                <strong>90 Days</strong>
-              </div>
-              <div class="info-row">
-                <span>Total Documents in Scope:</span>
-                <strong>{documents.length}</strong>
+          <div class="retention-card">
+            <div class="ret-header">
+              <span class="ret-icon">⚠️</span>
+              <div>
+                <span class="ret-title">GDPR Article 17 Erasure</span>
+                <span class="ret-sub">90-Day automated TTL retention policy</span>
               </div>
             </div>
-            <button class="btn-action delete-all" on:click={promptPurgeWorkspace}>
-              Purge All Workspace Data
+            <button class="purge-btn" on:click={promptPurgeWorkspace}>
+              Purge Workspace Data
             </button>
           </div>
         </div>
@@ -2563,9 +2678,9 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
             <div>
               <h2>AI Redline Diff & Multi-Document Comparison</h2>
               <p class="compare-desc">
-                Select any two contract revisions, policies, or invoices. Gemini 3.5 Flash performs
-                automated redlining, detects clause additions and deletions, identifies fee shifts,
-                and evaluates liability risk deltas.
+                Select any two contract revisions, policies, or invoices. Automated AI redlining
+                detects clause additions and deletions, identifies fee shifts, and evaluates
+                liability risk deltas.
               </p>
             </div>
             <div class="compare-header-actions">
@@ -2759,7 +2874,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
             <div class="metric-card total-card">
               <div class="metric-num">{comparisonResult.diffs.length}</div>
               <div class="metric-label">Total Material Redlines</div>
-              <div class="metric-sub">Audited by Gemini 3.5 Flash</div>
+              <div class="metric-sub">Audited by Document AI</div>
             </div>
           </div>
 
@@ -2793,8 +2908,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
               <div class="toolbar-left">
                 <span class="toolbar-title">Audited Redline Entries</span>
                 <span class="count-badge"
-                  >{getFilteredDiffs(comparisonResult.diffs).length} of {comparisonResult.diffs
-                    .length}</span
+                  >{filteredDiffsList.length} of {comparisonResult.diffs.length}</span
                 >
               </div>
               <div class="toolbar-right">
@@ -2872,12 +2986,12 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
 
             <!-- List of Diff Cards -->
             <div class="diff-cards-list">
-              {#if getFilteredDiffs(comparisonResult.diffs).length === 0}
+              {#if filteredDiffsList.length === 0}
                 <div class="empty-diffs-state">
                   <p>No redlines match the selected filters.</p>
                 </div>
               {:else}
-                {#each getFilteredDiffs(comparisonResult.diffs) as diff}
+                {#each paginatedDiffs as diff}
                   <div class="diff-card {diff.type}">
                     <!-- Card Top Header -->
                     <div class="diff-card-header">
@@ -2976,6 +3090,44 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                 {/each}
               {/if}
             </div>
+
+            {#if filteredDiffsList.length > 0}
+              <!-- Minimalist Pagination Bar -->
+              <div class="pagination-bar standalone mt-4">
+                <span class="pagination-info">
+                  Showing <strong
+                    >{(diffPage - 1) * diffPageSize + 1}–{Math.min(
+                      diffPage * diffPageSize,
+                      filteredDiffsList.length,
+                    )}</strong
+                  >
+                  of <strong>{filteredDiffsList.length}</strong> diffs
+                </span>
+                <div class="pagination-controls">
+                  <button
+                    type="button"
+                    class="pagination-btn"
+                    disabled={diffPage <= 1}
+                    on:click={() => diffPage--}
+                    aria-label="Previous Page"
+                  >
+                    &larr; Prev
+                  </button>
+                  <span class="pagination-page-indicator">
+                    Page <strong>{diffPage}</strong> of <strong>{diffTotalPages}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    class="pagination-btn"
+                    disabled={diffPage >= diffTotalPages}
+                    on:click={() => diffPage++}
+                    aria-label="Next Page"
+                  >
+                    Next &rarr;
+                  </button>
+                </div>
+              </div>
+            {/if}
           </div>
         {:else if !isComparing}
           <!-- Pre-comparison empty/guidance prompt -->
@@ -2983,9 +3135,9 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
             <div class="empty-icon">⚖️</div>
             <h3>Select Two Documents to Initiate Automated Redlining</h3>
             <p>
-              Compare contracts, policy revisions, purchase orders, or invoices side-by-side. Gemini
-              3.5 Flash analyzes clause modifications, fee differentials, and risk exposure changes
-              in real-time.
+              Compare contracts, policy revisions, purchase orders, or invoices side-by-side.
+              Automated AI analyzes clause modifications, fee differentials, and risk exposure
+              changes in real-time.
             </p>
             <div class="quick-compare-suggestions">
               <span>Quick Compare Suggestions:</span>
@@ -3335,116 +3487,562 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     background: #2a2a2a;
   }
 
-  /* Guest Playground Hero Banner */
-  .guest-playground-banner {
-    margin-bottom: 28px;
-    padding: 28px 32px;
-    border: 1px solid var(--border-color);
-    background: #ffffff;
-    border-radius: var(--radius-sm);
-    position: relative;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-  }
-
-  .banner-badge-row {
+  /* ==========================================================================
+     Minimalist Documents Workspace (Foxit-Style Clean Interface)
+     ========================================================================== */
+  .workspace-header {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 14px;
-  }
-
-  .banner-pill-pulse {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 3px 8px;
-    background: #111111;
-    color: #ffffff;
-    border-radius: var(--radius-sm);
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  .banner-pill-cyan {
-    padding: 3px 8px;
-    background: #f0f4f8;
-    border: 1px solid #cbd5e1;
-    color: #0f172a;
-    border-radius: var(--radius-sm);
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  .banner-pill-purple {
-    padding: 3px 8px;
-    background: #f5f3ff;
-    border: 1px solid #ddd6fe;
-    color: #4338ca;
-    border-radius: var(--radius-sm);
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  .banner-content-grid {
-    display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 24px;
+    gap: 20px;
+    margin-bottom: 20px;
     flex-wrap: wrap;
   }
 
-  .banner-text {
+  .workspace-title-group {
     flex: 1;
-    min-width: 280px;
+    min-width: 260px;
   }
 
-  .banner-hero-title {
+  .workspace-title {
     font-family: var(--font-heading);
-    font-size: 1.85rem;
+    font-size: 1.75rem;
     font-weight: 600;
     color: #111111;
-    margin: 0 0 8px 0;
-    line-height: 1.25;
-  }
-
-  .banner-hero-desc {
-    font-size: 0.92rem;
-    color: var(--text-muted);
     margin: 0;
-    line-height: 1.6;
-    max-width: 720px;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
   }
 
-  .banner-actions {
+  .workspace-subtitle {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    margin: 4px 0 0 0;
+  }
+
+  .workspace-header-actions {
     display: flex;
     align-items: center;
     gap: 12px;
+  }
+
+  /* Sleek Minimalist KPI Bar */
+  .minimal-kpi-bar {
+    display: flex;
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 14px 22px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    gap: 24px;
+  }
+
+  .kpi-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+  }
+
+  .kpi-icon-wrap {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    background: #f6f6f6;
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #111111;
     flex-shrink: 0;
   }
 
-  .btn-upgrade-glow {
-    background: #ffffff;
+  .kpi-icon-wrap.kpi-success {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+    color: #166534;
+  }
+
+  .kpi-icon-wrap.kpi-shield {
+    background: #fefce8;
+    border-color: #fef08a;
+    color: #854d0e;
+  }
+
+  .kpi-data {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .kpi-val {
+    font-size: 1.25rem;
+    font-weight: 700;
+    font-family: var(--font-heading);
     color: #111111;
-    border: 1px solid #111111;
+    line-height: 1.1;
+  }
+
+  .kpi-lbl {
+    font-size: 0.7rem;
     font-weight: 600;
-    font-size: 0.85rem;
-    letter-spacing: 0.04em;
-    padding: 9px 18px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .kpi-divider {
+    width: 1px;
+    height: 32px;
+    background: var(--border-color);
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 768px) {
+    .minimal-kpi-bar {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .kpi-divider {
+      display: none;
+    }
+  }
+
+  /* Compact Drag & Drop Intake Card */
+  .minimal-intake-card {
+    background: #ffffff;
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
+    padding: 14px 18px;
+    margin-bottom: 22px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  }
+
+  .minimal-dropzone {
+    border: 1.5px dashed #cbd5e1;
+    border-radius: var(--radius-sm);
+    padding: 16px 20px;
+    background: #fafafa;
     cursor: pointer;
     transition: all 0.2s ease;
   }
 
-  .btn-upgrade-glow:hover {
+  .minimal-dropzone:hover {
+    border-color: #111111;
+    background: #f5f5f5;
+  }
+
+  .dropzone-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .dropzone-left-group {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+    min-width: 260px;
+  }
+
+  .dropzone-icon-box {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--radius-sm);
+    background: #111111;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .dropzone-text-group {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dropzone-main-text {
+    font-size: 0.9rem;
+    color: #111111;
+  }
+
+  .dropzone-main-text .browse-link {
+    color: #111111;
+    font-weight: 700;
+    text-decoration: underline;
+  }
+
+  .dropzone-hint {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .dropzone-format-pills {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .fmt-tag {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  .fmt-tag.fmt-pdf {
+    background: #ffe4e6;
+    color: #be123c;
+  }
+  .fmt-tag.fmt-word {
+    background: #e0e7ff;
+    color: #4338ca;
+  }
+  .fmt-tag.fmt-excel {
+    background: #dcfce7;
+    color: #15803d;
+  }
+  .fmt-tag.fmt-img {
+    background: #fef3c7;
+    color: #b45309;
+  }
+
+  .demo-samples-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+    flex-wrap: wrap;
+  }
+
+  .demo-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  .demo-chip-btn {
     background: #f6f6f6;
-    transform: translateY(-1px);
+    border: 1px solid var(--border-color);
+    color: #111111;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .demo-chip-btn:hover {
+    background: #111111;
+    color: #ffffff;
+    border-color: #111111;
+  }
+
+  /* Document Vault Container & Toolbar */
+  .vault-container {
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  }
+
+  .vault-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: #ffffff;
+    border-bottom: 1px solid var(--border-color);
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .vault-filter-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+  }
+
+  .vault-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: #666666;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+
+  .vault-tab-btn:hover {
+    color: #111111;
+    background: #f6f6f6;
+  }
+
+  .vault-tab-btn.active {
+    background: #111111;
+    color: #ffffff;
+    border-color: #111111;
+  }
+
+  .tab-count {
+    font-size: 0.68rem;
+    font-family: var(--font-mono);
+    opacity: 0.85;
+    background: rgba(0, 0, 0, 0.08);
+    padding: 1px 5px;
+    border-radius: 9999px;
+  }
+
+  .vault-tab-btn.active .tab-count {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+  }
+
+  .vault-search-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f6f6f6;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 5px 10px;
+    min-width: 200px;
+    transition: all 0.2s;
+  }
+
+  .vault-search-box:focus-within {
+    background: #ffffff;
+    border-color: #111111;
+    box-shadow: 0 0 0 1px #111111;
+  }
+
+  .vault-search-box input {
+    background: transparent;
+    border: none;
+    font-size: 0.8rem;
+    color: #111111;
+    width: 100%;
+    outline: none;
+  }
+
+  .clear-search-btn {
+    background: transparent;
+    border: none;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 0 2px;
+  }
+
+  /* Vault Table - Fixed 5 rows grid with mouse scroll */
+  .vault-table-wrap {
+    max-height: 295px;
+    overflow-y: auto;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
+  }
+
+  .vault-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    text-align: left;
+    font-size: 0.84rem;
+  }
+
+  .vault-table th {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    padding: 10px 16px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #666666;
+    background: #fafafa;
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: inset 0 -1px 0 var(--border-color);
+  }
+
+  .vault-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+    color: #111111;
+  }
+
+  .vault-row:hover td {
+    background: #fafafa;
+  }
+
+  .doc-title-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .doc-fmt-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+
+  .doc-title-link {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: #111111;
+    font-weight: 600;
+    font-size: 0.86rem;
+    text-align: left;
+    cursor: pointer;
+    max-width: 320px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .doc-title-link:hover {
+    text-decoration: underline;
+    color: #ca8a04;
+  }
+
+  .type-pill {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #4b5563;
+    background: #f3f4f6;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .status-ready-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #15803d;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 9999px;
+    padding: 2px 8px;
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #16a34a;
+  }
+
+  .action-btn-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+  }
+
+  .row-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    font-size: 0.74rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .row-action-btn.primary {
+    background: #111111;
+    color: #ffffff;
+    border: 1px solid #111111;
+    padding: 4px 12px;
+    letter-spacing: 0.03em;
+  }
+
+  .row-action-btn.primary:hover {
+    background: #2a2a2a;
+    border-color: #2a2a2a;
+  }
+
+  .row-action-btn.secondary {
+    background: #ffffff;
+    color: #4b5563;
+    border: 1px solid var(--border-color);
+    padding: 4px 8px;
+  }
+
+  .row-action-btn.secondary:hover {
+    background: #f6f6f6;
+    color: #111111;
+    border-color: #111111;
+  }
+
+  .row-action-btn.delete {
+    background: transparent;
+    color: #9ca3af;
+    border: 1px solid transparent;
+    padding: 4px 7px;
+  }
+
+  .row-action-btn.delete:hover {
+    background: #fef2f2;
+    color: #dc2626;
+    border-color: #fecaca;
+  }
+
+  .vault-empty-state {
+    text-align: center;
+    padding: 44px 20px;
+  }
+
+  .vault-empty-state h4 {
+    font-family: var(--font-heading);
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #111111;
+    margin: 10px 0 4px 0;
+  }
+
+  .vault-empty-state p {
+    font-size: 0.84rem;
+    color: var(--text-muted);
+    margin: 0;
   }
 
   /* Sub Navigation Tabs */
@@ -3602,186 +4200,6 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     letter-spacing: 0.08em;
     color: #666666;
     margin-top: 4px;
-  }
-
-  /* Analytics Row */
-  .analytics-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    margin-bottom: 24px;
-  }
-
-  .analytics-card {
-    padding: 24px;
-    background: #ffffff;
-    border: 1px solid var(--border-color);
-  }
-
-  .card-subtitle {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    margin-bottom: 16px;
-  }
-
-  .dist-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 10px;
-  }
-
-  .dist-label {
-    width: 120px;
-    font-size: 0.85rem;
-    color: var(--text-main);
-  }
-
-  .bar-track {
-    flex: 1;
-    height: 8px;
-    background: #f0f0f0;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-  }
-
-  .bar-fill {
-    height: 100%;
-    background: #111111;
-    border-radius: var(--radius-sm);
-  }
-
-  .dist-val {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #111111;
-    width: 25px;
-    text-align: right;
-  }
-
-  .vendor-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 10px 14px;
-    background: #fbfbfb;
-    border-radius: var(--radius-sm);
-    margin-bottom: 8px;
-    border: 1px solid var(--border-color);
-    color: #111111;
-  }
-
-  .vendor-amt {
-    font-weight: 700;
-    color: #111111;
-  }
-
-  /* Table Card */
-  .table-card {
-    padding: 24px;
-    background: #ffffff;
-    border: 1px solid var(--border-color);
-  }
-
-  .table-header-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-  }
-
-  .table-wrapper {
-    overflow-x: auto;
-  }
-
-  .doc-table {
-    width: 100%;
-    border-collapse: collapse;
-    text-align: left;
-    font-size: 0.88rem;
-  }
-
-  .doc-table th {
-    padding: 12px 14px;
-    color: #666666;
-    font-weight: 700;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    border-bottom: 1px solid var(--border-color);
-    background: #fbfbfb;
-  }
-
-  .doc-table td {
-    padding: 14px;
-    border-bottom: 1px solid var(--border-color);
-    vertical-align: middle;
-    color: #111111;
-  }
-
-  .name-cell {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .file-icon {
-    font-size: 1.3rem;
-  }
-
-  .file-details {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .filename-btn {
-    background: transparent;
-    border: none;
-    padding: 0;
-    text-align: left;
-    font-weight: 600;
-    color: #111111;
-    cursor: pointer;
-    font-size: 0.9rem;
-  }
-
-  .filename-btn:hover {
-    text-decoration: underline;
-  }
-
-  .file-summary {
-    font-size: 0.78rem;
-    color: #666666;
-  }
-
-  .btn-action {
-    padding: 6px 12px;
-    border-radius: var(--radius-sm);
-    font-size: 0.78rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    cursor: pointer;
-  }
-
-  .btn-action.view {
-    background: #111111;
-    color: #ffffff;
-    border: 1px solid #111111;
-    margin-right: 6px;
-  }
-
-  .btn-action.view:hover {
-    background: #2a2a2a;
-  }
-
-  .btn-action.delete {
-    background: #ffffff;
-    border: 1px solid #e5e5e5;
-    color: #888888;
-  }
-
-  .btn-action.delete:hover {
-    border-color: #dc2626;
-    color: #dc2626;
   }
 
   /* Empty State */
@@ -4793,6 +5211,11 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     display: flex;
     flex-direction: column;
     gap: 8px;
+    max-height: 250px;
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
   }
 
   .key-points-list li {
@@ -4814,6 +5237,11 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
+    max-height: 250px;
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
   }
 
   .entity-top {
@@ -4898,13 +5326,28 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     font-size: 0.85rem;
   }
 
+  .line-items-scroll-wrap {
+    max-height: 250px;
+    overflow-y: auto;
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
+  }
+
   .line-items-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 0.82rem;
   }
 
   .line-items-table th {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: #fafafa;
     color: #666666;
     font-weight: 700;
     text-transform: uppercase;
@@ -4912,6 +5355,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     padding: 8px;
     text-align: left;
     border-bottom: 1px solid var(--border-color);
+    box-shadow: inset 0 -1px 0 var(--border-color);
   }
 
   .line-items-table td {
@@ -5022,382 +5466,311 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     background: #2a2a2a;
   }
 
-  /* Compliance & Audit Studio View */
+  /* Compliance & Audit Minimalist View */
+  .compliance-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .compliance-title {
+    font-size: 1.75rem;
+    font-weight: 600;
+    font-family: var(--font-heading);
+    color: #111111;
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+  }
+
+  .compliance-subtitle {
+    font-size: 0.85rem;
+    color: #666666;
+  }
+
   .compliance-header-actions {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
   }
 
-  .compliance-kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-
-  .comp-kpi-card {
-    padding: 20px;
+  /* Sleek 3-Metric KPI Bar */
+  .compliance-kpi-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     background: #ffffff;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
+    padding: 16px 24px;
+    margin-bottom: 20px;
+  }
+
+  .comp-kpi-item {
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    min-height: 140px;
+    gap: 3px;
+    flex: 1;
   }
 
-  .kpi-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-  }
-
-  .kpi-title {
-    font-size: 0.75rem;
+  .comp-kpi-label {
+    font-size: 0.72rem;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #666666;
-    font-weight: 600;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #777777;
   }
 
-  .kpi-main {
+  .comp-kpi-val-row {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: baseline;
+    gap: 8px;
   }
 
-  .kpi-number {
-    font-size: 2rem;
+  .comp-kpi-value {
+    font-size: 1.65rem;
     font-weight: 600;
     color: #111111;
     font-family: var(--font-heading);
     letter-spacing: -0.01em;
   }
 
-  .kpi-sub {
-    font-size: 0.78rem;
-    color: #777777;
-  }
-
-  .kpi-footer-progress {
-    width: 100%;
-    height: 6px;
-    background: #f0f0f0;
-    border-radius: 999px;
-    overflow: hidden;
-    margin-top: 12px;
-  }
-
-  .progress-bar {
-    height: 100%;
-    background: #111111;
-    border-radius: 999px;
-  }
-
-  .kpi-pills-row {
-    display: flex;
-    gap: 6px;
-    margin-top: 10px;
-    flex-wrap: wrap;
-  }
-
-  .mini-pill {
-    background: #f6f6f6;
-    border: 1px solid var(--border-color);
-    color: #111111;
-    font-size: 0.68rem;
-    font-weight: 600;
-    padding: 2px 7px;
-    border-radius: var(--radius-sm);
-  }
-
-  .pulse-indicator-live {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: #166534;
-    background: #f0fdf4;
-    padding: 3px 8px;
-    border-radius: var(--radius-sm);
-    border: 1px solid #bbf7d0;
-  }
-
-  .pulse-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: #166534;
-  }
-
-  .kpi-footer-text {
+  .comp-kpi-subtag {
     font-size: 0.75rem;
-    color: #777777;
-    margin-top: 10px;
-    font-style: italic;
+    color: #888888;
+    font-weight: 500;
   }
 
-  /* PII Matrix Card */
-  .pii-matrix-card {
-    padding: 24px;
+  .comp-kpi-desc {
+    font-size: 0.75rem;
+    color: #888888;
+  }
+
+  .comp-kpi-divider {
+    width: 1px;
+    height: 40px;
+    background: var(--border-color);
+    margin: 0 24px;
+  }
+
+  /* Active Guardrails Strip */
+  .guardrails-strip {
     background: #ffffff;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    margin-bottom: 24px;
-  }
-
-  .matrix-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 18px;
-  }
-
-  .matrix-header h3 {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin-bottom: 4px;
-  }
-
-  .matrix-desc {
-    font-size: 0.85rem;
-    color: #666666;
-    max-width: 800px;
-  }
-
-  .pii-chips-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 14px;
-  }
-
-  .pii-class-box {
-    background: #fbfbfb;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    padding: 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    transition: all 0.2s ease;
-  }
-
-  .pii-class-box:hover {
-    border-color: #111111;
-    background: #ffffff;
-    transform: translateY(-1px);
-  }
-
-  .box-top {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .box-icon {
-    font-size: 1.15rem;
-  }
-
-  .box-name {
-    font-weight: 600;
-    font-size: 0.85rem;
-    color: #111111;
-    flex: 1;
-  }
-
-  .box-count {
-    background: #111111;
-    color: #ffffff;
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
-  }
-
-  .box-rule {
-    font-size: 0.72rem;
-    color: #777777;
-    font-family: var(--font-mono);
-  }
-
-  .box-token {
-    font-size: 0.72rem;
-    color: #166534;
-    font-family: var(--font-mono);
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
-    padding: 3px 6px;
-    border-radius: var(--radius-sm);
-    width: fit-content;
-  }
-
-  /* Audit Trail Explorer */
-  .audit-trail-card {
-    padding: 24px;
-    background: #ffffff;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    margin-bottom: 24px;
-  }
-
-  .audit-trail-header {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+    padding: 14px 20px;
     margin-bottom: 20px;
   }
 
-  .audit-sub {
-    font-size: 0.85rem;
-    color: #666666;
+  .guardrails-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
   }
 
-  .audit-filters-bar {
+  .guardrails-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #111111;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .guardrails-subtitle {
+    font-size: 0.75rem;
+    color: #777777;
+  }
+
+  .guardrails-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .guardrail-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #fbfbfb;
+    border: 1px solid var(--border-color);
+    padding: 5px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    transition: all 0.15s ease;
+  }
+
+  .guardrail-chip:hover {
+    border-color: #111111;
+    background: #ffffff;
+  }
+
+  .chip-name {
+    color: #222222;
+    font-weight: 500;
+  }
+
+  .chip-count {
+    background: #111111;
+    color: #ffffff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+
+  /* Streamlined Audit Ledger Card */
+  .audit-ledger-card {
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .audit-ledger-toolbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 16px;
     flex-wrap: wrap;
+    margin-bottom: 16px;
   }
 
-  .audit-search-input-wrapper {
+  .audit-search-box {
     position: relative;
     display: flex;
     align-items: center;
     flex: 1;
-    min-width: 280px;
-    max-width: 420px;
+    min-width: 240px;
+    max-width: 360px;
   }
 
-  .audit-search-input-wrapper svg {
+  .audit-search-box svg {
     position: absolute;
     left: 12px;
-    color: var(--text-dim);
+    color: #888888;
   }
 
-  .audit-search-input-wrapper input {
+  .audit-search-box input {
     width: 100%;
-    padding: 8px 12px 8px 36px;
+    padding: 7px 12px 7px 34px;
     background: #f6f6f6;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     color: #111111;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
+    transition: all 0.15s ease;
   }
 
-  .audit-search-input-wrapper input:focus {
+  .audit-search-box input:focus {
     outline: none;
-    border-color: #111111;
     background: #ffffff;
+    border-color: #111111;
   }
 
-  .filter-pills-row {
+  .audit-filter-pills {
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
   }
 
-  .filter-pill {
+  .audit-pill {
     background: #ffffff;
     border: 1px solid var(--border-color);
     color: #666666;
     padding: 5px 12px;
     border-radius: var(--radius-sm);
-    font-size: 0.75rem;
+    font-size: 0.74rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.04em;
     cursor: pointer;
     transition: all 0.15s ease;
   }
 
-  .filter-pill:hover {
+  .audit-pill:hover {
     color: #111111;
     border-color: #111111;
   }
 
-  .filter-pill.active {
+  .audit-pill.active {
     background: #111111;
-    border-color: #111111;
     color: #ffffff;
+    border-color: #111111;
   }
 
-  /* Audit Table */
-  .audit-table-wrapper {
-    overflow-x: auto;
+  .audit-table-container {
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
+    background: #ffffff;
+    overflow: hidden;
+  }
+
+  .audit-table-wrap {
+    max-height: 295px;
+    overflow-y: auto;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
   }
 
   .audit-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 0.82rem;
     text-align: left;
   }
 
   .audit-table th {
+    position: sticky;
+    top: 0;
+    z-index: 5;
     background: #fbfbfb;
     color: #666666;
     font-weight: 700;
     font-size: 0.72rem;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    padding: 12px 16px;
+    letter-spacing: 0.06em;
+    padding: 10px 14px;
     border-bottom: 1px solid var(--border-color);
+    box-shadow: inset 0 -1px 0 var(--border-color);
   }
 
   .audit-table td {
-    padding: 12px 16px;
+    padding: 11px 14px;
     border-bottom: 1px solid var(--border-color);
-    vertical-align: middle;
     color: #111111;
+    vertical-align: middle;
   }
 
   .audit-table tbody tr:hover {
-    background: #f6f6f6;
+    background: #f8fafc;
   }
 
   .col-time {
     color: #777777;
-    font-size: 0.75rem;
+    font-size: 0.74rem;
     white-space: nowrap;
   }
 
-  .actor-cell {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .actor-avatar {
-    font-size: 1rem;
-    opacity: 0.8;
-  }
-
-  .actor-name {
-    font-weight: 600;
-    color: #111111;
-  }
-
-  .actor-ip {
-    font-size: 0.7rem;
-    color: #888888;
+  .col-action {
+    white-space: nowrap;
   }
 
   .action-tag {
     display: inline-block;
     padding: 2px 7px;
     border-radius: var(--radius-sm);
-    font-size: 0.7rem;
+    font-size: 0.68rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    white-space: nowrap;
   }
 
   .tag-uploaded {
@@ -5406,22 +5779,10 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     color: #166534;
   }
 
-  .tag-viewed {
-    background: #f1f5f9;
-    border: 1px solid #cbd5e1;
-    color: #0f172a;
-  }
-
   .tag-redacted {
     background: #fefce8;
     border: 1px solid #fef08a;
     color: #854d0e;
-  }
-
-  .tag-searched {
-    background: #f5f3ff;
-    border: 1px solid #ddd6fe;
-    color: #4338ca;
   }
 
   .tag-deleted {
@@ -5436,50 +5797,51 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     color: #334155;
   }
 
+  .tag-viewed {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+  }
+
   .tag-generic {
     background: #f6f6f6;
     color: #555555;
   }
 
-  .resource-cell {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+  .col-resource {
+    max-width: 220px;
   }
 
   .res-filename {
-    color: #111111;
     font-weight: 600;
-    max-width: 240px;
-    white-space: nowrap;
+    color: #111111;
+    display: block;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .res-id {
-    font-size: 0.68rem;
-    color: #888888;
+  .col-impact {
+    max-width: 280px;
   }
 
-  .meta-pii-chips {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
+  .impact-text {
+    font-size: 0.78rem;
+    color: #444444;
   }
 
-  .mini-meta-badge {
-    background: #f6f6f6;
-    border: 1px solid var(--border-color);
-    color: #111111;
-    font-size: 0.68rem;
-    padding: 2px 6px;
-    border-radius: var(--radius-sm);
-    font-family: var(--font-mono);
+  .col-actor {
+    white-space: nowrap;
   }
 
-  .meta-query {
-    font-size: 0.74rem;
-    color: #4338ca;
+  .actor-text {
+    font-size: 0.76rem;
+    font-weight: 500;
+    color: #555555;
+  }
+
+  .col-verify {
+    white-space: nowrap;
   }
 
   .verify-badge {
@@ -5489,7 +5851,6 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     color: #166534;
     font-size: 0.72rem;
     font-weight: 600;
-    white-space: nowrap;
   }
 
   .audit-loading,
@@ -5504,97 +5865,87 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     font-size: 0.85rem;
   }
 
-  /* Compliance Bottom Grid */
-  .compliance-bottom-grid {
+  /* Compliance Governance & Data Retention Bar */
+  .compliance-footer-grid {
     display: grid;
     grid-template-columns: 1.4fr 1fr;
-    gap: 24px;
+    gap: 16px;
   }
 
-  .compliance-framework-card,
-  .compliance-danger-card {
-    padding: 24px;
+  .governance-card,
+  .retention-card {
     background: #ffffff;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 12px;
   }
 
-  .framework-header {
+  .gov-header,
+  .ret-header {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 16px;
   }
 
-  .framework-header h3 {
-    font-size: 1.15rem;
-    font-weight: 600;
-  }
-
-  .frameworks-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .framework-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #fbfbfb;
-    border: 1px solid var(--border-color);
-    padding: 10px 14px;
-    border-radius: var(--radius-sm);
-  }
-
-  .fw-left {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .fw-control {
-    font-size: 0.72rem;
-    color: #777777;
-  }
-
-  .retention-info-box {
-    background: #fbfbfb;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    padding: 14px;
-    margin: 14px 0;
-  }
-
-  .info-row {
-    display: flex;
-    justify-content: space-between;
+  .gov-title,
+  .ret-title {
     font-size: 0.82rem;
-    margin-bottom: 6px;
-    color: #333333;
-  }
-
-  .info-row:last-child {
-    margin-bottom: 0;
-  }
-
-  .delete-all {
-    background: #fef2f2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
-    padding: 9px 16px;
-    border-radius: var(--radius-sm);
-    font-size: 0.82rem;
-    font-weight: 600;
+    font-weight: 700;
+    color: #111111;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    width: 100%;
   }
 
-  .delete-all:hover {
+  .ret-sub {
+    font-size: 0.74rem;
+    color: #777777;
+    display: block;
+  }
+
+  .gov-frameworks {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .gov-pill {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #166534;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+  }
+
+  .gov-pill .check {
+    font-weight: 800;
+    margin-right: 2px;
+  }
+
+  .purge-btn {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    width: fit-content;
+    align-self: flex-start;
+  }
+
+  .purge-btn:hover {
     background: #fee2e2;
+    border-color: #f87171;
   }
 
   /* Compare Action Button in Document Rows */
@@ -6131,6 +6482,11 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     display: flex;
     flex-direction: column;
     gap: 16px;
+    max-height: 520px;
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
   }
 
   .diff-card {
@@ -6516,5 +6872,91 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
   .fmt-inline-tag.badge-slate {
     background: #f1f5f9;
     color: #475569;
+  }
+
+  /* Search Results Scroll Container */
+  .search-results-scroll {
+    max-height: 520px;
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
+  }
+
+  /* Universal Minimalist Pagination Bar */
+  .pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 10px 16px;
+    background: #ffffff;
+    border-top: 1px solid var(--border-color);
+    font-size: 0.82rem;
+    color: #555555;
+  }
+
+  .pagination-bar.standalone {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+  }
+
+  .pagination-info {
+    font-size: 0.8rem;
+    color: #666666;
+  }
+
+  .pagination-info strong {
+    color: #111111;
+    font-weight: 600;
+  }
+
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pagination-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #222222;
+    background: #ffffff;
+    border: 1px solid #d4d4d8;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    line-height: 1.2;
+  }
+
+  .pagination-btn:hover:not(:disabled) {
+    background: #f4f4f5;
+    border-color: #a1a1aa;
+    color: #000000;
+  }
+
+  .pagination-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    background: #fafafa;
+    border-color: #e4e4e7;
+    color: #888888;
+  }
+
+  .pagination-page-indicator {
+    font-size: 0.78rem;
+    padding: 0 4px;
+    color: #555555;
+    white-space: nowrap;
+  }
+
+  .pagination-page-indicator strong {
+    color: #111111;
+    font-weight: 600;
   }
 </style>

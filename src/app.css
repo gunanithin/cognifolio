@@ -63,8 +63,12 @@
   --accent-rose: #dc2626;
 
   /* Typography Stack */
-  --font-heading: 'Playfair Display', Georgia, 'Times New Roman', serif;
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-sans:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   /* Radii */
@@ -93,11 +97,14 @@
   /* Disable OpenType ligatures that cause glyph corruption/black boxes in Chromium on macOS */
   font-variant-ligatures: none;
   -webkit-font-variant-ligatures: none;
-  font-feature-settings: "liga" 0, "clig" 0;
+  font-feature-settings:
+    'liga' 0,
+    'clig' 0;
   text-rendering: auto;
 }
 
-html, body {
+html,
+body {
   background-color: var(--bg-primary);
   color: var(--text-main);
   font-family: var(--font-body);
@@ -133,7 +140,10 @@ h6 {
   line-height: 1.4;
 }
 
-p, span, label, a {
+p,
+span,
+label,
+a {
   font-family: var(--font-body);
 }
 
@@ -283,7 +293,9 @@ textarea {
   padding: 8px 12px;
   color: var(--text-main);
   font-size: 0.88rem;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 input:focus,
@@ -303,7 +315,10 @@ textarea:focus {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-card);
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .glass-card:hover {
@@ -393,8 +408,13 @@ textarea:focus {
    ========================================================================== */
 
 @keyframes pulseGlow {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .pulse-indicator {
