@@ -1197,14 +1197,14 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
           <div class="workspace-title-group">
             <h1 class="workspace-title">Documents Workspace</h1>
             <p class="workspace-subtitle">
-              Secure AI-indexed vault for contracts, invoices, spreadsheets, and visual scans
+              Secure AI-indexed vault for PDFs, text files, and visual scans
             </p>
           </div>
           <div class="workspace-header-actions">
             <input
               type="file"
               id="dashboard-file-input"
-              accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.doc,.xlsx,.xls,.csv,.txt,.md"
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md"
               on:change={(e) => handleFileUpload(e.target.files[0])}
               class="hidden"
             />
@@ -1272,16 +1272,14 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                     <span class="browse-link">Browse files</span>
                   </div>
                   <div class="dropzone-hint">
-                    Direct intake: PDF, Word (DOCX), Excel & CSV (XLSX), Scanned Images (PNG, JPG)
-                    up to 25MB
+                    Direct intake: PDF, Images (PNG, JPG, WEBP), Text (TXT, MD) up to 25MB
                   </div>
                 </div>
               </div>
               <div class="dropzone-format-pills">
                 <span class="fmt-tag fmt-pdf">PDF</span>
-                <span class="fmt-tag fmt-word">DOCX</span>
-                <span class="fmt-tag fmt-excel">XLSX</span>
                 <span class="fmt-tag fmt-img">IMAGES</span>
+                <span class="fmt-tag fmt-txt">TXT</span>
               </div>
             </div>
           </div>
@@ -1525,7 +1523,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
               <input
                 type="file"
                 id="file-input"
-                accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.doc,.xlsx,.xls,.csv,.txt,.md"
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md"
                 on:change={(e) => handleFileUpload(e.target.files[0])}
                 disabled={isUploading}
               />
@@ -1545,14 +1543,10 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                 </div>
                 <h3>Drag & Drop documents here</h3>
                 <p>
-                  Universal multi-format intake: PDF, Word (DOCX), Excel & CSV (XLSX), Images, &
-                  Text up to 25MB
+                  Supported formats: PDF, Images (PNG, JPG, WEBP), & Text (TXT, MD) up to 25MB
                 </p>
                 <div class="format-badge-row">
                   <span class="fmt-pill fmt-pdf">PDF</span>
-                  <span class="fmt-pill fmt-word">DOCX</span>
-                  <span class="fmt-pill fmt-excel">XLSX</span>
-                  <span class="fmt-pill fmt-excel">CSV</span>
                   <span class="fmt-pill fmt-img">PNG / JPG</span>
                   <span class="fmt-pill fmt-txt">TXT</span>
                 </div>
@@ -3715,6 +3709,10 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
   .fmt-tag.fmt-img {
     background: #fef3c7;
     color: #b45309;
+  }
+  .fmt-tag.fmt-txt {
+    background: #f1f5f9;
+    color: #475569;
   }
 
   .demo-samples-row {
