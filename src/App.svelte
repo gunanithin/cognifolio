@@ -32,6 +32,7 @@
   import CSelect from './lib/ui/CSelect.svelte';
   import CIcon from './lib/icons/CIcon.svelte';
   import DeleteConfirmModal from './lib/components/DeleteConfirmModal.svelte';
+  import MorrowlessModal from './lib/components/MorrowlessModal.svelte';
   import CProgressBar from './lib/ui/CProgressBar.svelte';
   import { progress } from './lib/stores/progress.js';
 
@@ -117,6 +118,7 @@
 
   // Auth & Multi-Tenancy State
   let isAuthModalOpen = false;
+  let isMorrowlessModalOpen = false;
   let authModalMode = 'signin'; // 'signin' | 'signup'
   let currentUser = getCurrentUser();
 
@@ -1082,6 +1084,14 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
           </div>
           <div class="brand-text">
             <span class="brand-name">Cognifolio</span>
+            <button
+              type="button"
+              class="brand-byline"
+              on:click|stopPropagation={() => (isMorrowlessModalOpen = true)}
+              title="View Morrowless Collective & License"
+            >
+              by <strong>MORROWLESS</strong>
+            </button>
           </div>
         </div>
       </div>
@@ -1542,9 +1552,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                   >
                 </div>
                 <h3>Drag & Drop documents here</h3>
-                <p>
-                  Supported formats: PDF, Images (PNG, JPG, WEBP), & Text (TXT, MD) up to 25MB
-                </p>
+                <p>Supported formats: PDF, Images (PNG, JPG, WEBP), & Text (TXT, MD) up to 25MB</p>
                 <div class="format-badge-row">
                   <span class="fmt-pill fmt-pdf">PDF</span>
                   <span class="fmt-pill fmt-img">PNG / JPG</span>
@@ -3155,6 +3163,38 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     {/if}
   </main>
 
+  <!-- Enterprise Morrowless Footer -->
+  <footer class="app-footer">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <span class="footer-brand">Cognifolio</span>
+        <span class="footer-dot">•</span>
+        <button
+          type="button"
+          class="footer-org-link"
+          on:click={() => (isMorrowlessModalOpen = true)}
+          title="Click to view official Morrowless license"
+        >
+          An Independent Collective Product by <strong>MORROWLESS</strong>
+        </button>
+      </div>
+      <div class="footer-right">
+        <span class="footer-credo">“We don’t wait for the future. We build it.”</span>
+        <span class="footer-dot">•</span>
+        <button
+          type="button"
+          class="footer-license-btn"
+          on:click={() => (isMorrowlessModalOpen = true)}
+        >
+          License &amp; Ownership
+        </button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Morrowless Brand & License Modal -->
+  <MorrowlessModal bind:isOpen={isMorrowlessModalOpen} />
+
   <!-- Enterprise Authentication Modal -->
   {#if isAuthModalOpen && AuthModalComponent}
     <svelte:component
@@ -3269,6 +3309,139 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     font-weight: 600;
     letter-spacing: -0.01em;
     color: #111111;
+  }
+
+  .brand-byline {
+    background: transparent;
+    border: none;
+    padding: 2px 6px;
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #71717a;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .brand-byline strong {
+    font-weight: 700;
+    color: #111111;
+    letter-spacing: 0.08em;
+  }
+
+  .brand-byline:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: #111111;
+  }
+
+  /* ==========================================================================
+     Morrowless Editorial Fixed Footer
+     ========================================================================== */
+  .app-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 90;
+    border-top: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 9px 24px calc(9px + env(safe-area-inset-bottom, 0px)) 24px;
+    font-size: 0.78rem;
+    color: #71717a;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.02);
+  }
+
+  .footer-inner {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .footer-left,
+  .footer-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    white-space: nowrap;
+  }
+
+  .footer-brand {
+    font-family: var(--font-heading);
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: #111111;
+  }
+
+  .footer-dot {
+    color: #d4d4d8;
+  }
+
+  .footer-org-link {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.78rem;
+    color: #52525b;
+    cursor: pointer;
+    transition: color 0.15s ease;
+  }
+
+  .footer-org-link strong {
+    color: #111111;
+    letter-spacing: 0.06em;
+  }
+
+  .footer-org-link:hover {
+    color: #000000;
+    text-decoration: underline;
+  }
+
+  .footer-credo {
+    font-family: var(--font-heading);
+    font-style: italic;
+    color: #71717a;
+    font-size: 0.78rem;
+  }
+
+  .footer-license-btn {
+    background: rgba(0, 0, 0, 0.04);
+    border: 1px solid var(--border-color);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #27272a;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .footer-license-btn:hover {
+    background: #111111;
+    color: #ffffff;
+    border-color: #111111;
+  }
+
+  @media (max-width: 768px) {
+    .app-footer {
+      padding: 8px 16px;
+    }
+    .footer-credo {
+      display: none;
+    }
+    .footer-inner {
+      justify-content: space-between;
+    }
   }
 
   .nav-center {
@@ -4089,7 +4262,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
 
   /* Content */
   .content-container {
-    padding: 32px;
+    padding: 32px 32px calc(64px + env(safe-area-inset-bottom, 0px)) 32px;
     flex: 1;
     max-width: 1400px;
     margin: 0 auto;
