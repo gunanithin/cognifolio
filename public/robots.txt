@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://cognifolio.vercel.app/sitemap.xml
+Sitemap: https://www.morrowless.io/sitemap.xml
