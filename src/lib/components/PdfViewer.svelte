@@ -1,14 +1,169 @@
 <script>
-  import { onMount, onDestroy, tick } from 'svelte';
+  import { onMount, onDestroy, tick, createEventDispatcher } from 'svelte';
   import * as pdfjsLib from 'pdfjs-dist';
   import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
   import CIcon from '../icons/CIcon.svelte';
+
+  const dispatch = createEventDispatcher();
 
   // Props
   export let fileUrl = '';
   export let fileType = 'pdf';
   export let rawText = '';
   export let highlightQuery = '';
+  export let entities = {};
+  export let lineItems = [];
+
+  let activeSpatialBoxId = null;
+
+  function computeSpatialBoxes(entMap, items) {
+    const boxes = [];
+    if (entMap && typeof entMap === 'object') {
+      for (const [key, val] of Object.entries(entMap)) {
+        if (
+          val &&
+          typeof val === 'object' &&
+          Array.isArray(val.box_2d) &&
+          val.box_2d.length === 4
+        ) {
+          const [ymin, xmin, ymax, xmax] = val.box_2d;
+          const formattedLabel = key.replace(/_/g, ' ');
+          const w = Math.max(12, xmax - xmin);
+          const h = Math.max(12, ymax - ymin);
+          boxes.push({
+            id: key,
+            key: key,
+            type: 'entity',
+            isLeaf: true,
+            isContainer: false,
+            label: formattedLabel,
+            description: formattedLabel,
+            value: String(val.value !== undefined && val.value !== null ? val.value : ''),
+            rawVal: val,
+            ymin,
+            xmin,
+            ymax,
+            xmax,
+            width: w,
+            height: h,
+            area: (w * h) / (1000 * 1000),
+          });
+        }
+      }
+    }
+    if (Array.isArray(items)) {
+      items.forEach((item, idx) => {
+        if (item && Array.isArray(item.box_2d) && item.box_2d.length === 4) {
+          const [ymin, xmin, ymax, xmax] = item.box_2d;
+          const desc = (item.description || '').trim();
+          const w = Math.max(12, xmax - xmin);
+          const h = Math.max(12, ymax - ymin);
+          const area = (w * h) / (1000 * 1000);
+
+          // Check if item is a compound macro-container: e.g. "Parent (Sub 1, Sub 2, Sub 3)"
+          const parenMatch = desc.match(/^([^(:\n]+?)\s*\(([^)]+)\)$/);
+          if (parenMatch && (parenMatch[2].includes(',') || parenMatch[2].includes(';'))) {
+            const subParts = parenMatch[2]
+              .split(/[,;]+/)
+              .map((s) => s.trim())
+              .filter((s) => s.length >= 2);
+
+            if (subParts.length >= 2) {
+              // Add the macro-container marked with isContainer: true
+              boxes.push({
+                id: desc || `item-${idx}`,
+                key: desc || `item-${idx}`,
+                type: 'line_item',
+                isContainer: true,
+                isLeaf: false,
+                label: 'Section',
+                description: desc,
+                amount: item.amount,
+                value:
+                  desc + (item.amount ? ` ($${Number(item.amount).toLocaleString()})` : ''),
+                rawVal: item,
+                ymin,
+                xmin,
+                ymax,
+                xmax,
+                width: w,
+                height: h,
+                area,
+              });
+
+              // Decompose into granular leaf sub-boxes with subdivided coordinates
+              const count = subParts.length;
+              const isVertical = h >= w;
+              for (let sIdx = 0; sIdx < count; sIdx++) {
+                const subTitle = subParts[sIdx];
+                let sYmin = ymin;
+                let sYmax = ymax;
+                let sXmin = xmin;
+                let sXmax = xmax;
+
+                if (isVertical) {
+                  const step = h / count;
+                  sYmin = Math.round(ymin + sIdx * step);
+                  sYmax = Math.round(ymin + (sIdx + 1) * step);
+                } else {
+                  const step = w / count;
+                  sXmin = Math.round(xmin + sIdx * step);
+                  sXmax = Math.round(xmin + (sIdx + 1) * step);
+                }
+
+                const subW = Math.max(12, sXmax - sXmin);
+                const subH = Math.max(12, sYmax - sYmin);
+                boxes.push({
+                  id: `${desc}::sub::${subTitle}`,
+                  key: subTitle,
+                  type: 'line_item',
+                  isLeaf: true,
+                  isContainer: false,
+                  label: 'Component',
+                  description: subTitle,
+                  amount: undefined,
+                  value: subTitle,
+                  rawVal: { description: subTitle, box_2d: [sYmin, sXmin, sYmax, sXmax] },
+                  ymin: sYmin,
+                  xmin: sXmin,
+                  ymax: sYmax,
+                  xmax: sXmax,
+                  width: subW,
+                  height: subH,
+                  area: (subW * subH) / (1000 * 1000),
+                });
+              }
+              return;
+            }
+          }
+
+          boxes.push({
+            id: desc || `item-${idx}`,
+            key: desc || `item-${idx}`,
+            type: 'line_item',
+            isLeaf: true,
+            isContainer: false,
+            label: 'Line Item',
+            description: desc,
+            amount: item.amount,
+            value:
+              desc + (item.amount ? ` ($${Number(item.amount).toLocaleString()})` : ''),
+            rawVal: item,
+            ymin,
+            xmin,
+            ymax,
+            xmax,
+            width: w,
+            height: h,
+            area,
+          });
+        }
+      });
+    }
+    return boxes;
+  }
+
+  $: spatialBoxes = computeSpatialBoxes(entities, lineItems);
 
   pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -74,8 +229,21 @@
 
   // React to highlightQuery changes
   $: if (highlightQuery) {
+    const qInfo = extractQueryInfo(highlightQuery);
+    if (qInfo) {
+      currentQueryLabel = qInfo.displayLabel;
+      if (fileCategory === 'image') {
+        const qFeat = parseSearchFeatures(qInfo);
+        const tb = findBestSpatialBox(highlightQuery, qInfo, qFeat, spatialBoxes);
+        if (tb) {
+          activeSpatialBoxId = tb.id;
+          locateStatus = `Visual Box: ${tb.label}`;
+        }
+      }
+    }
     handleQueryHighlight(highlightQuery);
   } else {
+    activeSpatialBoxId = null;
     highlightBoxes = [];
     locateStatus = '';
     currentQueryLabel = '';
@@ -164,24 +332,38 @@
       return {
         type: 'text',
         rawText: cleanStr,
-        displayLabel: cleanStr.slice(0, 28),
+        displayLabel: cleanStr.length > 36 ? cleanStr.slice(0, 36) + '...' : cleanStr,
         key: '',
         val: cleanStr,
+        id: cleanStr,
+        amount: undefined,
+        box_2d: null,
       };
     }
     // Object input
     const type = input.type || 'text';
     const key = input.key || '';
+    const id = input.id || key || '';
     const val = input.val !== undefined && input.val !== null ? String(input.val) : '';
-    const text = input.text || (val ? `${key} ${val}` : '');
-    const label = input.label || key.replace(/_/g, ' ') || text.slice(0, 28) || 'Match';
+    const text = input.text || (val ? `${key} ${val}` : key || id || '');
+    const defaultLabel = key
+      ? key.replace(/_/g, ' ')
+      : text.length > 36
+        ? text.slice(0, 36) + '...'
+        : text || 'Match';
+    const label =
+      input.label && input.label !== 'Takeaway' && input.label !== 'Risk Clause'
+        ? input.label
+        : defaultLabel;
     return {
       type,
       rawText: text,
       displayLabel: label,
       key,
       val,
+      id,
       amount: input.amount,
+      box_2d: input.box_2d || null,
     };
   }
 
@@ -418,6 +600,18 @@
       bigrams.push(`${words[i]} ${words[i + 1]}`);
     }
 
+    // 7. Primary Subject extraction (first 1-2 core topical keywords of the query)
+    const strippedSubject = clean
+      .replace(/^#?\d+[\s.:)\-]*/, '')
+      .replace(/^(?:step|item|rule|point|takeaway)\s*\d+[\s.:)\-]*/i, '')
+      .trim();
+    const subjectWords = strippedSubject
+      .split(/[\s,.:;'"\(\)\/\\-]+/)
+      .filter((w) => w.length >= 3 && !genericStopwords.has(w));
+    const primarySubjectToken = subjectWords[0] || '';
+    const primarySubjectPhrase =
+      subjectWords.length >= 2 ? `${subjectWords[0]} ${subjectWords[1]}` : primarySubjectToken;
+
     return {
       raw,
       clean,
@@ -430,8 +624,166 @@
       entityKeywords,
       tokens,
       bigrams,
+      primarySubjectToken,
+      primarySubjectPhrase,
       info,
     };
+  }
+
+  function findBestSpatialBox(queryInput, info, feat, boxes) {
+    if (!boxes || boxes.length === 0) return null;
+
+    // 1. Direct coordinate object match
+    if (queryInput && typeof queryInput === 'object' && queryInput.box_2d) {
+      const targetId = queryInput.id || queryInput.key;
+      const direct = boxes.find((b) => b.id === targetId || b.key === targetId);
+      if (direct) return direct;
+    }
+
+    // 2. Direct key or ID match
+    const qKey = (info?.key || '').toLowerCase().trim();
+    const qId = (info?.id || '').toLowerCase().trim();
+    if (qKey || qId) {
+      const byKeyOrId = boxes.find((b) => {
+        const bKey = (b.key || '').toLowerCase().trim();
+        const bId = (b.id || '').toLowerCase().trim();
+        return (
+          (qKey && (bKey === qKey || bId === qKey)) ||
+          (qId && (bId === qId || bKey === qId))
+        );
+      });
+      if (byKeyOrId) return byKeyOrId;
+    }
+
+    // 3. Substantive multi-feature scoring
+    if (!feat) return null;
+
+    let bestBox = null;
+    let highestScore = 0;
+
+    const primarySubj = feat.primarySubjectToken || '';
+    const primaryPhrase = feat.primarySubjectPhrase || '';
+
+    for (const b of boxes) {
+      let score = 0;
+      const bDesc = (b.rawVal?.description || b.description || '').toLowerCase().trim();
+      const bVal = (b.value || '').replace(/\s*\(\$[\d,.]+\)$/, '').toLowerCase().trim();
+      const bLabel = (b.label || '').toLowerCase().trim();
+      const bKey = (b.key || '').replace(/_/g, ' ').toLowerCase().trim();
+
+      // Combine text representations of the box
+      const boxTexts = [bDesc, bVal, bLabel, bKey].filter((s) => s && s.length >= 2);
+      const mainText = bDesc || bVal || bLabel;
+
+      // A. Exact phrase match with clean query
+      if (feat.clean && feat.clean.length >= 3) {
+        for (const bt of boxTexts) {
+          if (bt.length >= 3) {
+            if (feat.clean.includes(bt)) {
+              score += 350;
+            } else if (bt.includes(feat.clean)) {
+              score += 350;
+            }
+          }
+        }
+      }
+
+      // B. Primary Subject Primacy Match (Topical Focus)
+      // When the user query focuses on a subject, a box that starts with or prominently names it gets highest priority!
+      if (primarySubj && primarySubj.length >= 3) {
+        for (const bt of boxTexts) {
+          if (bt.startsWith(primarySubj) || (primaryPhrase && bt.startsWith(primaryPhrase))) {
+            score += 420;
+            break;
+          } else if (bt.includes(primarySubj)) {
+            score += 180;
+            break;
+          }
+        }
+      }
+
+      // C. Date Aliases match (e.g. "18/11/2026" vs "November 18, 2026")
+      for (const da of feat.dateAliases) {
+        const daLower = da.toLowerCase();
+        for (const bt of boxTexts) {
+          if (bt.includes(daLower)) {
+            score += 280;
+          }
+        }
+      }
+
+      // D. Normalized Numbers / Amounts match
+      for (const num of feat.normalizedNums) {
+        if (num.length >= 3) {
+          for (const bt of boxTexts) {
+            if (bt.includes(num)) {
+              score += 200;
+            }
+          }
+        }
+      }
+
+      // E. Substantive 2-word bigrams
+      for (const bg of feat.bigrams) {
+        for (const bt of boxTexts) {
+          if (bt.includes(bg)) {
+            score += 100;
+          }
+        }
+      }
+
+      // F. Entity contextual keywords
+      for (const ek of feat.entityKeywords) {
+        for (const bt of boxTexts) {
+          if (bt.includes(ek)) {
+            score += 70;
+          }
+        }
+      }
+
+      // G. Distinctive individual tokens (>= 3 chars)
+      let matchedTokenCount = 0;
+      for (const tok of feat.tokens) {
+        if (tok.length >= 3) {
+          for (const bt of boxTexts) {
+            if (bt.includes(tok)) {
+              score += 30;
+              matchedTokenCount++;
+              break;
+            }
+          }
+        }
+      }
+
+      // H. Word Density / Purity Bonus
+      // High density: box is concise and mostly relevant (leaf item)
+      // Low density: box is huge with many irrelevant words (parent container)
+      const boxWords = mainText.split(/[\s,.:;'"\(\)\/\\-]+/).filter((w) => w.length >= 3);
+      if (boxWords.length > 0 && matchedTokenCount > 0) {
+        const density = Math.min(1, matchedTokenCount / boxWords.length);
+        score += Math.round(density * 140);
+      }
+
+      // I. Physical Geometry: Compactness Bonus vs Macro-Container Penalty
+      const boxArea = b.area !== undefined ? b.area : ((b.width || 0) * (b.height || 0)) / (1000 * 1000);
+      const boxH = b.height !== undefined ? b.height : (b.ymax - b.ymin);
+      const boxW = b.width !== undefined ? b.width : (b.xmax - b.xmin);
+
+      if (b.isContainer || boxArea > 0.20 || boxH > 550) {
+        // Giant container / column section: penalize heavily to avoid highlighting entire sections
+        score -= 220;
+      } else if (boxArea < 0.12 && boxH < 350 && boxW < 600) {
+        // Focused leaf component: award compactness bonus
+        score += 130;
+      }
+
+      if (score > highestScore) {
+        highestScore = score;
+        bestBox = b;
+      }
+    }
+
+    return highestScore >= 50 ? bestBox : null;
   }
 
   async function handleQueryHighlight(queryInput) {
@@ -440,19 +792,37 @@
       highlightBoxes = [];
       locateStatus = '';
       currentQueryLabel = '';
+      activeSpatialBoxId = null;
       return;
     }
 
     currentQueryLabel = info.displayLabel;
+    const feat = parseSearchFeatures(info);
 
+    // 1. Text / OCR Reader mode: ALWAYS highlight and scroll in extracted text
+    if (viewMode === 'text') {
+      activeSpatialBoxId = null;
+      if (feat && rawText) {
+        const lineMatch = findBestLineMatch(rawText, feat);
+        if (lineMatch) {
+          locateStatus = lineMatch.pageNumber
+            ? `Page ${lineMatch.pageNumber} of ${totalPages || '?'}`
+            : 'Focal line match';
+        }
+      }
+      await tick();
+      scrollToHighlightedText();
+      return;
+    }
+
+    // 2. Spreadsheet Interactive Data Grid
     if (fileCategory === 'spreadsheet') {
-      const feat = parseSearchFeatures(info);
       if (feat && parsedSheets.length > 0) {
         let firstMatchSheet = -1;
         for (let s = 0; s < parsedSheets.length; s++) {
           const sheet = parsedSheets[s];
           const hasMatch = (sheet.rows || []).some((r) =>
-            r.some((cell) => isCellMatched(cell, info))
+            r.some((cell) => isCellMatched(cell, info)),
           );
           if (hasMatch) {
             firstMatchSheet = s;
@@ -471,13 +841,32 @@
       return;
     }
 
+    // 3. Image Visual Canvas Mode
     if (fileCategory === 'image') {
+      const bestBox = findBestSpatialBox(queryInput, info, feat, spatialBoxes);
+
+      if (bestBox) {
+        activeSpatialBoxId = bestBox.id;
+        locateStatus = `Visual Box: ${bestBox.label}`;
+        await scrollToSpatialBox(bestBox);
+        return;
+      }
+
+      // If no visual bounding box matched on canvas
+      activeSpatialBoxId = null;
+      if (rawText && feat) {
+        const lineMatch = findBestLineMatch(rawText, feat);
+        if (lineMatch) {
+          locateStatus = 'Available in OCR Text';
+          return;
+        }
+      }
       locateStatus = 'Available in OCR';
       return;
     }
 
+    // 4. Word DOCX / Text Formatted Reader Mode
     if (fileCategory === 'docx' || fileCategory === 'text') {
-      const feat = parseSearchFeatures(info);
       if (feat && rawText) {
         const lineMatch = findBestLineMatch(rawText, feat);
         if (lineMatch) {
@@ -489,26 +878,12 @@
       return;
     }
 
-    if (viewMode === 'text') {
-      const feat = parseSearchFeatures(info);
-      if (feat && rawText) {
-        const lineMatch = findBestLineMatch(rawText, feat);
-        if (lineMatch && lineMatch.pageNumber) {
-          locateStatus = `Page ${lineMatch.pageNumber} of ${totalPages || '?'}`;
-        }
-      }
-      await tick();
-      scrollToHighlightedText();
-      return;
-    }
-
-    // In Canvas Mode for PDF: Score all pages to find which page actually contains the target finding
+    // 5. In Canvas Mode for PDF: Score all pages to find which page actually contains the target finding
     if (!pdfDoc) return;
     isLocating = true;
     locateStatus = `Locating "${currentQueryLabel}"...`;
 
     try {
-      const feat = parseSearchFeatures(info);
       let bestPage = null;
       let highestScore = 0;
 
@@ -795,6 +1170,37 @@
       console.warn('Could not compute highlight boxes:', err);
       highlightBoxes = [];
     }
+  }
+
+  async function scrollToSpatialBox(box) {
+    await tick();
+    if (!imageContainerRef || !box) return;
+    const img = imageContainerRef.querySelector('.document-img');
+    if (img) {
+      const imgHeight = img.clientHeight || img.naturalHeight || 800;
+      const imgWidth = img.clientWidth || img.naturalWidth || 600;
+      const centerY = ((box.ymin + box.height / 2) / 1000) * imgHeight * imageZoom;
+      const centerX = ((box.xmin + box.width / 2) / 1000) * imgWidth * imageZoom;
+      imageContainerRef.scrollTo({
+        top: Math.max(0, centerY - imageContainerRef.clientHeight / 2),
+        left: Math.max(0, centerX - imageContainerRef.clientWidth / 2),
+        behavior: 'smooth',
+      });
+    }
+  }
+
+  function handleSelectSpatialBox(box) {
+    activeSpatialBoxId = box.id;
+    locateStatus = `Visual Pin: ${box.label}`;
+    currentQueryLabel = box.label;
+    dispatch('selectEntity', {
+      id: box.id,
+      key: box.key,
+      type: box.type,
+      label: box.label,
+      value: box.value,
+      rawVal: box.rawVal,
+    });
   }
 
   function changePage(delta) {
@@ -1113,9 +1519,7 @@
     if (tableLines.length === 0) {
       const csvLines = lines.filter((l) => !l.startsWith('---'));
       if (csvLines.length > 0) {
-        const firstLine = csvLines[0]
-          .split(',')
-          .map((c) => c.trim().replace(/^["']|["']$/g, ''));
+        const firstLine = csvLines[0].split(',').map((c) => c.trim().replace(/^["']|["']$/g, ''));
         const rows = csvLines
           .slice(1)
           .map((l) => l.split(',').map((c) => c.trim().replace(/^["']|["']$/g, '')));
@@ -1451,11 +1855,21 @@
           </div>
 
           <div class="zoom-controls">
-            <button type="button" class="tool-btn" on:click={() => changeZoom(-0.25)} title="Zoom out">
+            <button
+              type="button"
+              class="tool-btn"
+              on:click={() => changeZoom(-0.25)}
+              title="Zoom out"
+            >
               <CIcon name="minus" size={12} />
             </button>
             <span class="zoom-indicator">{Math.round(zoomScale * 100)}%</span>
-            <button type="button" class="tool-btn" on:click={() => changeZoom(0.25)} title="Zoom in">
+            <button
+              type="button"
+              class="tool-btn"
+              on:click={() => changeZoom(0.25)}
+              title="Zoom in"
+            >
               <CIcon name="plus" size={12} />
             </button>
           </div>
@@ -1543,14 +1957,95 @@
           </div>
         </div>
       {:else if fileCategory === 'image'}
-        <!-- Image Document Viewer with Zoom and Locator Pin -->
+        <!-- Image Document Viewer with Zoom, Responsive Spatial SVG Overlay, and Locator Pin -->
         <div class="image-viewer-wrapper" bind:this={imageContainerRef}>
-          <div class="image-zoom-box" style="transform: scale({imageZoom}); transform-origin: top center;">
-            <img src={fileUrl} alt="Document Scan" class="document-img" />
+          <div
+            class="image-zoom-box"
+            style="transform: scale({imageZoom}); transform-origin: top center;"
+          >
+            <div class="image-scan-relative-container">
+              <img src={fileUrl} alt="Document Scan" class="document-img" />
+
+              {#if spatialBoxes.length > 0}
+                <svg
+                  class="spatial-bounding-svg"
+                  viewBox="0 0 1000 1000"
+                  preserveAspectRatio="none"
+                >
+                  <defs>
+                    <filter id="amber-glow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feDropShadow
+                        dx="0"
+                        dy="0"
+                        stdDeviation="4"
+                        flood-color="#ca8a04"
+                        flood-opacity="0.8"
+                      />
+                      <feDropShadow
+                        dx="0"
+                        dy="0"
+                        stdDeviation="8"
+                        flood-color="#fef08a"
+                        flood-opacity="0.6"
+                      />
+                    </filter>
+                  </defs>
+                  {#each spatialBoxes as box (box.id)}
+                    <g
+                      class="spatial-box-group {activeSpatialBoxId === box.id
+                        ? 'active-pulse'
+                        : ''}"
+                      on:click={() => handleSelectSpatialBox(box)}
+                      on:keydown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleSelectSpatialBox(box);
+                        }
+                      }}
+                      role="button"
+                      tabindex="0"
+                    >
+                      <rect
+                        x={box.xmin}
+                        y={box.ymin}
+                        width={box.width}
+                        height={box.height}
+                        class="spatial-rect"
+                        rx="4"
+                      />
+                      <!-- Floating Pinpoint Badge Background -->
+                      <rect
+                        x={Math.min(760, Math.max(0, box.xmin))}
+                        y={Math.max(0, box.ymin - 24)}
+                        width={Math.min(
+                          300,
+                          Math.max(100, (box.label.length + box.value.length) * 7.5 + 24),
+                        )}
+                        height="20"
+                        rx="4"
+                        class="spatial-badge-bg"
+                      />
+                      <!-- Floating Pinpoint Badge Text -->
+                      <text
+                        x={Math.min(760, Math.max(0, box.xmin)) + 6}
+                        y={Math.max(0, box.ymin - 24) + 14}
+                        class="spatial-badge-text"
+                      >
+                        📍 {box.label}: {box.value}
+                      </text>
+                    </g>
+                  {/each}
+                </svg>
+              {/if}
+            </div>
+
             {#if highlightQuery}
               <div class="image-locator-overlay">
                 <span class="chip-dot"></span>
                 <span>Entity Located: <strong>"{currentQueryLabel}"</strong></span>
+                {#if activeSpatialBoxId}
+                  <span class="visual-pin-badge">Visual Box Highlighted</span>
+                {/if}
                 <button
                   type="button"
                   class="ocr-jump-pill"
@@ -1594,7 +2089,11 @@
                 class="grid-filter-input"
               />
               {#if gridFilterQuery}
-                <button type="button" class="clear-filter-btn" on:click={() => (gridFilterQuery = '')}>✕</button>
+                <button
+                  type="button"
+                  class="clear-filter-btn"
+                  on:click={() => (gridFilterQuery = '')}>✕</button
+                >
               {/if}
             </div>
             <div class="grid-filter-stats">
@@ -1604,7 +2103,9 @@
 
           <div class="spreadsheet-grid-scroll" bind:this={gridContainerRef}>
             {#if activeSheet.headers.length === 0 && activeSheet.rows.length === 0}
-              <div class="empty-sheet-notice">No structured table data detected in spreadsheet.</div>
+              <div class="empty-sheet-notice">
+                No structured table data detected in spreadsheet.
+              </div>
             {:else}
               <table class="spreadsheet-table">
                 <thead>
@@ -1939,6 +2440,104 @@
     transition: transform 0.15s ease-out;
   }
 
+  .image-scan-relative-container {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+  }
+
+  .spatial-bounding-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  .spatial-box-group {
+    pointer-events: all;
+    cursor: pointer;
+    outline: none;
+  }
+
+  .spatial-rect {
+    fill: rgba(202, 138, 4, 0.12);
+    stroke: rgba(202, 138, 4, 0.55);
+    stroke-width: 2px;
+    vector-effect: non-scaling-stroke;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .spatial-box-group:hover .spatial-rect {
+    fill: rgba(202, 138, 4, 0.24);
+    stroke: #ca8a04;
+    stroke-width: 2.5px;
+  }
+
+  .spatial-box-group.active-pulse .spatial-rect {
+    fill: rgba(202, 138, 4, 0.32);
+    stroke: #ca8a04;
+    stroke-width: 3.5px;
+    filter: url(#amber-glow);
+    animation: spatial-pulse 1.8s infinite alternate ease-in-out;
+  }
+
+  @keyframes spatial-pulse {
+    0% {
+      stroke-width: 2.5px;
+      fill: rgba(202, 138, 4, 0.2);
+    }
+    100% {
+      stroke-width: 4px;
+      fill: rgba(202, 138, 4, 0.4);
+    }
+  }
+
+  .spatial-badge-bg {
+    fill: #111111;
+    stroke: rgba(202, 138, 4, 0.6);
+    stroke-width: 1px;
+    opacity: 0.94;
+    transition: all 0.2s ease;
+  }
+
+  .spatial-box-group:hover .spatial-badge-bg {
+    fill: #1a1a1a;
+    stroke: #ca8a04;
+  }
+
+  .spatial-box-group.active-pulse .spatial-badge-bg {
+    fill: #ca8a04;
+    stroke: #fef08a;
+    stroke-width: 1.5px;
+  }
+
+  .spatial-badge-text {
+    fill: #ffffff;
+    font-family: var(--font-mono, monospace);
+    font-size: 11px;
+    font-weight: 600;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .spatial-box-group.active-pulse .spatial-badge-text {
+    fill: #111111;
+    font-weight: 700;
+  }
+
+  .visual-pin-badge {
+    background: rgba(202, 138, 4, 0.2);
+    color: #fde047;
+    border: 1px solid rgba(202, 138, 4, 0.6);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.68rem;
+    font-weight: 600;
+  }
+
   .document-img {
     max-width: 100%;
     height: auto;
@@ -2181,7 +2780,7 @@
     padding: 48px 56px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
     color: #1a1a1a;
-    font-family: var(--font-sans, "Inter", sans-serif);
+    font-family: var(--font-sans, 'Inter', sans-serif);
     line-height: 1.7;
   }
 
@@ -2193,7 +2792,7 @@
   }
 
   :global(.reader-h1) {
-    font-family: var(--font-heading, "Playfair Display", Georgia, serif);
+    font-family: var(--font-heading, 'Playfair Display', Georgia, serif);
     font-size: 1.85rem;
     font-weight: 700;
     color: #111111;
@@ -2205,7 +2804,7 @@
   }
 
   :global(.reader-h2) {
-    font-family: var(--font-heading, "Playfair Display", Georgia, serif);
+    font-family: var(--font-heading, 'Playfair Display', Georgia, serif);
     font-size: 1.35rem;
     font-weight: 700;
     color: #222222;

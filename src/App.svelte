@@ -164,6 +164,7 @@
   let isLoadingCompliance = false;
   let isExportingAudit = false;
   let isRedactedView = false;
+  let isReanalyzing = false;
 
   // Conversational Document AI (Chat with Document)
   let viewerRightTab = 'intel'; // 'intel' | 'chat'
@@ -326,22 +327,55 @@
 
   function locateTakeaway(pt) {
     if (!pt) return;
+    const shortLabel = pt.length > 36 ? pt.slice(0, 36) + '...' : pt;
     highlightInDoc({
       type: 'takeaway',
       text: pt,
       id: pt,
-      label: 'Takeaway',
+      label: shortLabel,
     });
+  }
+
+  function handleSpatialEntitySelect(event) {
+    const detail = event.detail;
+    if (!detail) return;
+    if (detail.type === 'entity') {
+      activeHighlightKey = detail.key;
+      activeHighlightTerm = {
+        type: 'entity',
+        key: detail.key,
+        val: detail.value,
+        id: detail.id,
+        label: detail.label,
+        box_2d: detail.rawVal && detail.rawVal.box_2d ? detail.rawVal.box_2d : null,
+      };
+    } else if (detail.type === 'line_item') {
+      activeHighlightKey = detail.id;
+      activeHighlightTerm = {
+        type: 'line_item',
+        text: detail.value,
+        id: detail.id,
+        label: 'Line Item',
+        box_2d: detail.rawVal && detail.rawVal.box_2d ? detail.rawVal.box_2d : null,
+      };
+    }
   }
 
   function locateEntity(key, val) {
     if (!val) return;
-    const valStr = Array.isArray(val) ? val.join(', ') : String(val);
+    const rawVal =
+      val && typeof val === 'object' && !Array.isArray(val) && val.value !== undefined
+        ? val.value
+        : val;
+    const box2d =
+      val && typeof val === 'object' && !Array.isArray(val) && val.box_2d ? val.box_2d : null;
+    const valStr = Array.isArray(rawVal) ? rawVal.join(', ') : String(rawVal);
     const formattedKey = key.replace(/_/g, ' ');
     highlightInDoc({
       type: 'entity',
       key: key,
       val: valStr,
+      box_2d: box2d,
       text: `${formattedKey}: ${valStr}`,
       id: key,
       label: formattedKey,
@@ -356,6 +390,7 @@
       type: 'line_item',
       text: query,
       amount: item.amount,
+      box_2d: item.box_2d || null,
       id: item.description,
       label: 'Line Item',
     });
@@ -363,11 +398,12 @@
 
   function locateRiskClause(clause) {
     if (!clause) return;
+    const shortLabel = clause.length > 36 ? clause.slice(0, 36) + '...' : clause;
     highlightInDoc({
       type: 'clause',
       text: clause,
       id: clause,
-      label: 'Risk Clause',
+      label: shortLabel,
     });
   }
 
@@ -555,7 +591,8 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     if (t === 'xlsx' || t === 'xls') return { label: 'XLSX', badgeClass: 'badge-emerald' };
     if (t === 'csv') return { label: 'CSV', badgeClass: 'badge-emerald' };
     if (t === 'docx' || t === 'doc') return { label: 'DOCX', badgeClass: 'badge-indigo' };
-    if (['png', 'jpg', 'jpeg', 'webp'].includes(t)) return { label: 'IMG', badgeClass: 'badge-amber' };
+    if (['png', 'jpg', 'jpeg', 'webp'].includes(t))
+      return { label: 'IMG', badgeClass: 'badge-amber' };
     return { label: t ? t.toUpperCase() : 'TXT', badgeClass: 'badge-slate' };
   }
 
@@ -615,12 +652,18 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
 
   async function viewDocumentDetail(docOrId) {
     try {
-      const id = typeof docOrId === 'object' && docOrId !== null ? docOrId.id || docOrId.document_id : docOrId;
+      const id =
+        typeof docOrId === 'object' && docOrId !== null
+          ? docOrId.id || docOrId.document_id
+          : docOrId;
       if (!id) return;
       selectedDoc = await getDocument(id);
       activeTab = 'viewer';
     } catch (err) {
-      const id = typeof docOrId === 'object' && docOrId !== null ? docOrId.id || docOrId.document_id : docOrId;
+      const id =
+        typeof docOrId === 'object' && docOrId !== null
+          ? docOrId.id || docOrId.document_id
+          : docOrId;
       const localDoc = documents.find((d) => d.id === id);
       if (localDoc) {
         selectedDoc = localDoc;
@@ -628,6 +671,31 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
       } else {
         errorMsg = err.message || 'Failed to load document';
       }
+    }
+  }
+
+  async function triggerReanalyze(docId) {
+    if (!docId || isReanalyzing) return;
+    isReanalyzing = true;
+    progress.start('Executing deep multimodal AI analysis...');
+    try {
+      const res = await authFetch(`/api/v1/documents/${docId}/reanalyze`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        const updatedDoc = await res.json();
+        selectedDoc = updatedDoc;
+        documents = documents.map((d) => (d.id === docId ? updatedDoc : d));
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.detail || 'Re-analysis failed. Please try again.');
+      }
+    } catch (err) {
+      console.error('Re-analysis error:', err);
+      alert('Network error while requesting AI re-analysis.');
+    } finally {
+      isReanalyzing = false;
+      progress.done();
     }
   }
 
@@ -1218,10 +1286,14 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                           </div>
                           <div class="file-details">
                             <div class="flex items-center gap-2">
-                              <button class="filename-btn" on:click={() => viewDocumentDetail(doc.id)}
+                              <button
+                                class="filename-btn"
+                                on:click={() => viewDocumentDetail(doc.id)}
                                 >{doc.original_filename}</button
                               >
-                              <span class="fmt-inline-tag {fmtInfo.badgeClass}">{fmtInfo.label}</span>
+                              <span class="fmt-inline-tag {fmtInfo.badgeClass}"
+                                >{fmtInfo.label}</span
+                              >
                             </div>
                             <span class="file-summary"
                               >{doc.insights
@@ -1237,7 +1309,9 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                         </CBadge>
                       </td>
                       <td>
-                        {doc.file_type === 'xlsx' || doc.file_type === 'xls' ? `${doc.page_count} sht` : `${doc.page_count} pg`}
+                        {doc.file_type === 'xlsx' || doc.file_type === 'xls'
+                          ? `${doc.page_count} sht`
+                          : `${doc.page_count} pg`}
                         ({Math.round(doc.file_size_bytes / 1024)} KB)
                       </td>
                       <td>
@@ -1321,7 +1395,10 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                   >
                 </div>
                 <h3>Drag & Drop documents here</h3>
-                <p>Universal multi-format intake: PDF, Word (DOCX), Excel & CSV (XLSX), Images, & Text up to 25MB</p>
+                <p>
+                  Universal multi-format intake: PDF, Word (DOCX), Excel & CSV (XLSX), Images, &
+                  Text up to 25MB
+                </p>
                 <div class="format-badge-row">
                   <span class="fmt-pill fmt-pdf">PDF</span>
                   <span class="fmt-pill fmt-word">DOCX</span>
@@ -1672,6 +1749,22 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                 </a>
               {/if}
 
+              <button
+                type="button"
+                class="btn-secondary reanalyze-btn {selectedDoc.insights?.confidence_score === 0
+                  ? 'reanalyze-pulse'
+                  : ''}"
+                on:click={() => triggerReanalyze(selectedDoc.id)}
+                disabled={isReanalyzing}
+                title="Re-run deep multimodal AI intelligence on this document"
+              >
+                {#if isReanalyzing}
+                  <span>Analyzing...</span>
+                {:else}
+                  <span>✨ Re-analyze AI</span>
+                {/if}
+              </button>
+
               <button class="btn-action delete" on:click={() => promptDeleteDocument(selectedDoc)}>
                 Delete Document ✕
               </button>
@@ -1691,6 +1784,9 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                   fileType={selectedDoc.file_type}
                   rawText={selectedDoc.insights?.raw_extracted_text || ''}
                   bind:highlightQuery={activeHighlightTerm}
+                  entities={selectedDoc.insights?.entities || {}}
+                  lineItems={selectedDoc.insights?.line_items || []}
+                  on:selectEntity={handleSpatialEntitySelect}
                 />
               {:else}
                 <div class="viewer-lazy-loading">
@@ -1812,10 +1908,24 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                           >
                             <div class="entity-top">
                               <span class="entity-key">{key.replace(/_/g, ' ')}</span>
-                              <span class="mini-search-icon">🔍</span>
+                              {#if val && typeof val === 'object' && !Array.isArray(val) && val.box_2d}
+                                <span
+                                  class="spatial-pin-indicator"
+                                  title="Visual box detected on scan">📍 Pin</span
+                                >
+                              {:else}
+                                <span class="mini-search-icon">🔍</span>
+                              {/if}
                             </div>
                             <span class="entity-val"
-                              >{Array.isArray(val) ? val.join(', ') : val}</span
+                              >{val &&
+                              typeof val === 'object' &&
+                              !Array.isArray(val) &&
+                              val.value !== undefined
+                                ? val.value
+                                : Array.isArray(val)
+                                  ? val.join(', ')
+                                  : val}</span
                             >
                           </button>
                         {/if}
@@ -1889,7 +1999,11 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                                 on:click|stopPropagation={() => locateLineItem(item)}
                                 title="Click to jump to line item in document"
                               >
-                                🔍 Locate →
+                                {#if item.box_2d}
+                                  📍 Pin →
+                                {:else}
+                                  🔍 Locate →
+                                {/if}
                               </button>
                             </td>
                           </tr>
@@ -4704,6 +4818,58 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
+  }
+
+  .entity-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 3px;
+  }
+
+  .reanalyze-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 0.8rem;
+    cursor: pointer;
+    border: 1px solid #d4d4d4;
+    transition: all 0.15s ease-out;
+  }
+
+  .reanalyze-btn:hover {
+    border-color: #ca8a04;
+    color: #ca8a04;
+  }
+
+  .reanalyze-pulse {
+    border-color: #ca8a04;
+    color: #ca8a04;
+    background: rgba(202, 138, 4, 0.08);
+    box-shadow: 0 0 10px rgba(254, 240, 138, 0.6);
+    animation: reanalyze-halo 2s infinite ease-in-out;
+  }
+
+  @keyframes reanalyze-halo {
+    0%,
+    100% {
+      box-shadow: 0 0 4px rgba(202, 138, 4, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 14px rgba(202, 138, 4, 0.7);
+    }
+  }
+
+  .spatial-pin-indicator {
+    font-size: 0.68rem;
+    color: #ca8a04;
+    background: rgba(202, 138, 4, 0.12);
+    border: 1px solid rgba(202, 138, 4, 0.35);
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-weight: 700;
   }
 
   .entity-key {
