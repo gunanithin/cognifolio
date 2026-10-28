@@ -97,11 +97,13 @@
     isLoading = true;
     locateStatus = '';
     highlightBoxes = [];
+    viewMode = 'canvas';
     try {
       const loadingTask = pdfjsLib.getDocument(url);
       pdfDoc = await loadingTask.promise;
       totalPages = pdfDoc.numPages;
       currentPage = 1;
+      await tick();
       await renderPage(currentPage);
 
       if (highlightQuery) {
@@ -116,6 +118,7 @@
   }
 
   async function renderPage(pageNum) {
+    await tick();
     if (!pdfDoc || !canvasRef) return;
     if (renderTask) {
       renderTask.cancel();
