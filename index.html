@@ -3,54 +3,68 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://cognifolio.vercel.app/" />
+
+    <!-- Google Search Favicon & Touch Icons (Multi-Resolution for Googlebot-Image) -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192x192.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="shortcut icon" href="/favicon.ico" />
 
     <!-- Google Search Console Verification -->
     <meta name="google-site-verification" content="j3GLG0neA1ifPg8Y6BjVw7j3hSY3WG71fMRNAv-kw0E" />
 
-    <!-- Primary SEO Metadata -->
-    <title>Cognifolio — Enterprise Multimodal Document Intelligence & Redline Diff</title>
+    <!-- Primary High-Intent SEO Metadata -->
+    <title>Cognifolio — Free AI PDF Analysis & Document Analyzer | Chat, Redact & Compare</title>
     <meta
       name="title"
-      content="Cognifolio — Enterprise Multimodal Document Intelligence & Redline Diff"
+      content="Cognifolio — Free AI PDF Analysis & Document Analyzer | Chat, Redact & Compare"
     />
     <meta
       name="description"
-      content="Analyze PDFs, contracts, and financial statements instantly with enterprise AI. Features conversational RAG with visual PDF citations, automated contract redline comparison, PII redaction, and semantic search."
+      content="Analyze PDF documents, contracts, and spreadsheets instantly with AI. Free online AI document analysis tool to chat with PDFs, extract insights, redact sensitive PII, and compare documents."
     />
     <meta
       name="keywords"
-      content="AI PDF analyzer, document intelligence studio, multimodal RAG assistant, contract comparison diff, automated redlining, PII redaction, semantic vector search, enterprise document AI"
+      content="pdf analysis, doc analysis, ai doc analysis, ai pdf analyzer, analyze pdf online, chat with pdf, document intelligence, contract comparison, redact pdf online, pii redaction, pdf summarizer, free document analyzer, contract redline"
     />
-    <meta name="robots" content="index, follow" />
-    <meta name="author" content="Cognifolio AI" />
-    <meta name="theme-color" content="#f6f6f6" />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    />
+    <meta name="author" content="Cognifolio" />
+    <meta name="theme-color" content="#111111" />
 
-    <!-- Open Graph / Facebook -->
+    <!-- Open Graph / Facebook / LinkedIn / WhatsApp -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Cognifolio" />
-    <meta
-      property="og:title"
-      content="Cognifolio — Enterprise Multimodal Document Intelligence & Redline Diff"
-    />
+    <meta property="og:url" content="https://cognifolio.vercel.app/" />
+    <meta property="og:title" content="Cognifolio — Free AI PDF Analysis & Document Analyzer" />
     <meta
       property="og:description"
-      content="Instant AI document intelligence with visual coordinate citations, contract redlines, and automated PII redaction. Try free as a guest or sign in."
+      content="Instant AI document analysis: chat with PDFs, extract structured insights, redact sensitive PII, and compare contract versions online."
     />
     <meta property="og:locale" content="en_US" />
-    <meta property="og:image" content="/app-icon.png" />
+    <meta property="og:image" content="https://cognifolio.vercel.app/app-icon.png" />
+    <meta property="og:image:width" content="1024" />
+    <meta property="og:image:height" content="1024" />
+    <meta property="og:image:alt" content="Cognifolio AI PDF & Document Analyzer Logo" />
 
     <!-- Twitter Cards -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Cognifolio — Enterprise Multimodal Document Intelligence" />
+    <meta name="twitter:site" content="@Cognifolio" />
+    <meta name="twitter:title" content="Cognifolio — Free AI PDF Analysis & Document Analyzer" />
     <meta
       name="twitter:description"
-      content="Analyze complex documents, redline contracts, and chat with PDFs using document AI with visual citation highlighting."
+      content="Analyze PDFs, contracts, and spreadsheets with AI. Chat with PDFs, auto-redact sensitive PII, and compare documents."
     />
-    <meta name="twitter:image" content="/app-icon.png" />
+    <meta name="twitter:image" content="https://cognifolio.vercel.app/app-icon.png" />
 
-    <!-- Google Fonts: Outfit (Modern Headings), Inter (UI Body), JetBrains Mono (Data/Code), Playfair Display (Editorial) -->
+    <!-- Google Fonts: Outfit, Inter, JetBrains Mono, Playfair Display -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -58,32 +72,141 @@
       rel="stylesheet"
     />
 
-    <!-- Structured Data (JSON-LD) for Search Engines -->
+    <!-- Structured Data (JSON-LD Graph) for Google Search Engine Rich Snippets -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "Cognifolio",
-        "applicationCategory": "BusinessApplication",
-        "operatingSystem": "All modern web browsers",
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "USD"
-        },
-        "description": "Enterprise multimodal document intelligence platform providing conversational RAG with PDF coordinate citations, automated contract comparison diffs, and PII masking powered by enterprise document intelligence.",
-        "featureList": [
-          "Conversational Chat with Document with clickable PDF coordinate citations",
-          "Multi-document contract redline comparison and financial delta analytics",
-          "Instant PII discovery and physical PDF masking",
-          "Sub-second semantic vector retrieval with Qdrant Cloud",
-          "Multi-tenant data isolation and SOC2/GDPR audit trail"
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://cognifolio.vercel.app/#website",
+            "url": "https://cognifolio.vercel.app/",
+            "name": "Cognifolio",
+            "alternateName": [
+              "Cognifolio AI",
+              "Cognifolio PDF Analyzer",
+              "Cognifolio Document Intelligence"
+            ],
+            "publisher": {
+              "@type": "Organization",
+              "name": "Cognifolio",
+              "url": "https://cognifolio.vercel.app/",
+              "logo": {
+                "@type": "ImageObject",
+                "url": "https://cognifolio.vercel.app/app-icon.png",
+                "width": 1024,
+                "height": 1024
+              }
+            }
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://cognifolio.vercel.app/#organization",
+            "name": "Cognifolio",
+            "url": "https://cognifolio.vercel.app/",
+            "logo": "https://cognifolio.vercel.app/app-icon.png"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://cognifolio.vercel.app/#software",
+            "name": "Cognifolio — AI PDF & Document Analyzer",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "Web, Windows, macOS, Linux, iOS, Android",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            },
+            "description": "Free online AI document analysis tool to analyze PDF documents, contracts, invoices, and spreadsheets. Chat with PDFs with visual citations, compare versions side-by-side, and redact sensitive personal information.",
+            "featureList": [
+              "AI PDF Analysis & Multi-Format Document Intelligence",
+              "Interactive Chat with PDF featuring visual page citations",
+              "Automated Contract Comparison & Redline Diff Analytics",
+              "Zero-Trust PII Redaction & Downloadable Black-Box Redacted PDFs",
+              "Sub-second Semantic Vector Search across all documents"
+            ]
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://cognifolio.vercel.app/#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "How does Cognifolio's AI PDF and document analysis work?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Cognifolio uses enterprise AI to analyze PDF documents, legal contracts, financial spreadsheets, and scanned images. It instantly extracts key clauses, action items, financial metrics, and allows you to chat directly with your files with interactive visual coordinate citations."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is my document data safe and private when using Cognifolio?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. Cognifolio is built with zero-trust isolation. Sensitive personal information (PII) like salaries, bank details, and personal IDs is masked on the server before AI processing. Uploads are strictly siloed to your own session with zero cross-user leakage."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can I redact sensitive information from my PDF documents?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. Cognifolio automatically detects sensitive PII and generates downloadable physically redacted PDFs with permanent black bounding box overlays, perfect for audits and external sharing."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How can I compare two versions of a contract or document?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Upload both document versions to Cognifolio, select 'Compare', and the platform generates an automated redline comparison highlighting clause additions, deletions, and risk level shifts side-by-side."
+                }
+              }
+            ]
+          }
         ]
       }
     </script>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <noscript>
+        <div
+          style="
+            font-family: system-ui, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+          "
+        >
+          <h1>Cognifolio — Free AI PDF & Document Analyzer</h1>
+          <p>
+            Analyze PDF documents, contracts, invoices, and spreadsheets online with enterprise AI.
+            Chat with PDFs, auto-redact sensitive PII, compare contract versions, and perform deep
+            semantic searches.
+          </p>
+          <h2>Features</h2>
+          <ul>
+            <li>
+              <strong>AI PDF Analysis:</strong> Instant multi-format document extraction and
+              summarization.
+            </li>
+            <li>
+              <strong>Conversational PDF Chat:</strong> Chat with any document with visual
+              coordinate citations.
+            </li>
+            <li>
+              <strong>Contract Redline Diff:</strong> Side-by-side document comparison and risk
+              analytics.
+            </li>
+            <li>
+              <strong>Zero-Trust PII Redaction:</strong> Download audit-ready redacted PDFs with
+              masked personal data.
+            </li>
+          </ul>
+        </div>
+      </noscript>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
