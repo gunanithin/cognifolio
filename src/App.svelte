@@ -1082,7 +1082,6 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
           </div>
           <div class="brand-text">
             <span class="brand-name">Cognifolio</span>
-            <span class="badge badge-cyan">Cognitive Intelligence</span>
           </div>
         </div>
       </div>
