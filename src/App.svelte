@@ -33,6 +33,7 @@
   import CIcon from './lib/icons/CIcon.svelte';
   import DeleteConfirmModal from './lib/components/DeleteConfirmModal.svelte';
   import MorrowlessModal from './lib/components/MorrowlessModal.svelte';
+  import SecurityGuideModal from './lib/components/SecurityGuideModal.svelte';
   import CProgressBar from './lib/ui/CProgressBar.svelte';
   import { progress } from './lib/stores/progress.js';
 
@@ -119,6 +120,7 @@
   // Auth & Multi-Tenancy State
   let isAuthModalOpen = false;
   let isMorrowlessModalOpen = false;
+  let isSecurityGuideOpen = false;
   let authModalMode = 'signin'; // 'signin' | 'signup'
   let currentUser = getCurrentUser();
 
@@ -579,6 +581,16 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     } finally {
       progress.done();
     }
+
+    // Auto-display Security & Document Protection Guide when user lands on page
+    if (typeof window !== 'undefined') {
+      const hasDismissed = localStorage.getItem('cognifolio_security_guide_dismissed');
+      if (!hasDismissed) {
+        setTimeout(() => {
+          isSecurityGuideOpen = true;
+        }, 350);
+      }
+    }
   });
 
   async function refreshAll(isInitial = false) {
@@ -733,6 +745,11 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
 
   async function handleFileUpload(fileToUpload) {
     if (!fileToUpload) return;
+    if (fileToUpload.size > 50 * 1024 * 1024) {
+      errorMsg = 'File size exceeds maximum limit of 50MB. Please select a document under 50MB.';
+      return;
+    }
+    activeTab = 'upload';
     isUploading = true;
     uploadStep = 1;
     errorMsg = '';
@@ -1214,7 +1231,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
             <input
               type="file"
               id="dashboard-file-input"
-              accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md"
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.doc,.xlsx,.xls,.csv,.txt,.md"
               on:change={(e) => handleFileUpload(e.target.files[0])}
               class="hidden"
             />
@@ -1251,13 +1268,20 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
 
           <div class="kpi-divider"></div>
 
-          <div class="kpi-item">
+          <div
+            class="kpi-item kpi-interactive"
+            role="button"
+            tabindex="0"
+            on:click={() => (isSecurityGuideOpen = true)}
+            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (isSecurityGuideOpen = true)}
+            title="Click to view Document Security & Protection Policy"
+          >
             <div class="kpi-icon-wrap kpi-shield">
               <CIcon name="shield" size={18} />
             </div>
             <div class="kpi-data">
               <span class="kpi-val">Zero-Trust Active</span>
-              <span class="kpi-lbl">PII & Data Redaction</span>
+              <span class="kpi-lbl">PII &amp; Data Redaction</span>
             </div>
           </div>
         </div>
@@ -1282,12 +1306,15 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                     <span class="browse-link">Browse files</span>
                   </div>
                   <div class="dropzone-hint">
-                    Direct intake: PDF, Images (PNG, JPG, WEBP), Text (TXT, MD) up to 25MB
+                    Direct intake: PDF, Images (PNG, JPG, WEBP), Office & Data (DOCX, XLSX, CSV),
+                    Text (TXT, MD) up to 50MB
                   </div>
                 </div>
               </div>
               <div class="dropzone-format-pills">
                 <span class="fmt-tag fmt-pdf">PDF</span>
+                <span class="fmt-tag fmt-excel">EXCEL / CSV</span>
+                <span class="fmt-tag fmt-word">DOCX</span>
                 <span class="fmt-tag fmt-img">IMAGES</span>
                 <span class="fmt-tag fmt-txt">TXT</span>
               </div>
@@ -1526,6 +1553,24 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
           </div>
         </div>
 
+        <!-- Privacy & Protection Reassurance Strip -->
+        <div class="upload-security-strip">
+          <div class="sec-strip-left">
+            <CIcon name="shield" size={16} />
+            <span
+              ><strong>Your documents are 100% private &amp; secure:</strong> Pre-AI PII masking &bull;
+              Zero AI model training &bull; 1-Click permanent shredding anytime.</span
+            >
+          </div>
+          <button
+            type="button"
+            class="sec-guide-link"
+            on:click={() => (isSecurityGuideOpen = true)}
+          >
+            How our protection works &rarr;
+          </button>
+        </div>
+
         <div class="upload-grid">
           <!-- Drop Zone -->
           <div class="glass-card dropzone-card">
@@ -1533,7 +1578,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
               <input
                 type="file"
                 id="file-input"
-                accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md"
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.doc,.xlsx,.xls,.csv,.txt,.md"
                 on:change={(e) => handleFileUpload(e.target.files[0])}
                 disabled={isUploading}
               />
@@ -1552,9 +1597,14 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                   >
                 </div>
                 <h3>Drag & Drop documents here</h3>
-                <p>Supported formats: PDF, Images (PNG, JPG, WEBP), & Text (TXT, MD) up to 25MB</p>
+                <p>
+                  Supported formats: PDF, Images (PNG, JPG, WEBP), Office & Data (DOCX, XLSX, CSV),
+                  & Text (TXT, MD) up to 50MB
+                </p>
                 <div class="format-badge-row">
                   <span class="fmt-pill fmt-pdf">PDF</span>
+                  <span class="fmt-pill fmt-excel">XLSX / CSV</span>
+                  <span class="fmt-pill fmt-word">DOCX</span>
                   <span class="fmt-pill fmt-img">PNG / JPG</span>
                   <span class="fmt-pill fmt-txt">TXT</span>
                 </div>
@@ -3195,6 +3245,15 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
         <button
           type="button"
           class="footer-license-btn"
+          on:click={() => (isSecurityGuideOpen = true)}
+          title="Read Document Security & Protection Policy"
+        >
+          Security &amp; Protection Policy
+        </button>
+        <span class="footer-dot">•</span>
+        <button
+          type="button"
+          class="footer-license-btn"
           on:click={() => (isMorrowlessModalOpen = true)}
         >
           License &amp; Ownership
@@ -3205,6 +3264,9 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
 
   <!-- Morrowless Brand & License Modal -->
   <MorrowlessModal bind:isOpen={isMorrowlessModalOpen} />
+
+  <!-- Document Security & Protection Policy Modal -->
+  <SecurityGuideModal bind:isOpen={isSecurityGuideOpen} />
 
   <!-- Enterprise Authentication Modal -->
   {#if isAuthModalOpen && AuthModalComponent}
@@ -3814,6 +3876,89 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     }
     .kpi-divider {
       display: none;
+    }
+  }
+
+  .kpi-item.kpi-interactive {
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    margin: -4px -8px;
+    transition: all 0.15s ease-out;
+  }
+
+  .kpi-item.kpi-interactive:hover {
+    background: #fefce8;
+  }
+
+  .kpi-val-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .kpi-guide-pill {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #854d0e;
+    background: #fef08a;
+    border: 1px solid #fde047;
+    padding: 1px 7px;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+  }
+
+  /* Upload View Privacy Reassurance Strip */
+  .upload-security-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-left: 3px solid #ca8a04;
+    border-radius: var(--radius-sm);
+    padding: 10px 16px;
+    margin-bottom: 18px;
+    gap: 14px;
+    font-size: 0.82rem;
+    color: #334155;
+  }
+
+  .sec-strip-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    color: #334155;
+  }
+
+  .sec-strip-left strong {
+    color: #0f172a;
+  }
+
+  .sec-guide-link {
+    background: transparent;
+    border: none;
+    color: #ca8a04;
+    font-weight: 700;
+    font-size: 0.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    padding: 0;
+  }
+
+  .sec-guide-link:hover {
+    color: #854d0e;
+  }
+
+  @media (max-width: 768px) {
+    .upload-security-strip {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
     }
   }
 
