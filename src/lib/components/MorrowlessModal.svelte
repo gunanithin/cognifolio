@@ -100,9 +100,32 @@
           <strong>Morrowless Inc.</strong> All zero-trust PII sanitization pipelines, multimodal neural
           extractors, and redline diff algorithms are protected intellectual property.
         </p>
+        <!-- Dedicated High-End Contact Row -->
+        <div class="modal-contact-row">
+          <span class="modal-contact-label">Direct Inquiries &amp; Legal</span>
+          <a
+            href="mailto:contact@morrowless.io"
+            class="contact-pill-btn"
+            title="Email Morrowless at contact@morrowless.io"
+          >
+            <svg
+              class="mail-icon"
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <rect x="2" y="4" width="20" height="16" rx="2" />
+              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+            </svg>
+            <strong>contact@morrowless.io</strong>
+          </a>
+        </div>
+
         <div class="license-footer-row">
           <span class="copyright-text">© 2026 Morrowless. All rights reserved.</span>
-          <span class="version-tag">License Ref: MWL-2026-ENT</span>
         </div>
       </div>
     </div>
@@ -291,15 +314,71 @@
     color: #ffffff;
   }
 
-  .license-footer-row {
+  .modal-contact-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
+    padding: 9px 14px;
+    margin-bottom: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 6px;
+  }
+
+  .modal-contact-label {
+    font-family: var(--font-sans);
+    color: #a1a1aa;
+    font-size: 0.74rem;
+    font-weight: 500;
+  }
+
+  .contact-pill-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-family: var(--font-mono, monospace);
-    font-size: 0.7rem;
+    font-size: 0.74rem;
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 4px 10px;
+    border-radius: 4px;
+    text-decoration: none;
+    transition: all 0.15s ease;
+  }
+
+  .contact-pill-btn strong {
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .contact-pill-btn:hover {
+    background: #ffffff;
+    color: #0c0c0c;
+    border-color: #ffffff;
+  }
+
+  .contact-pill-btn .mail-icon {
+    opacity: 0.75;
+    transition: opacity 0.15s ease;
+  }
+
+  .contact-pill-btn:hover .mail-icon {
+    opacity: 1;
+    stroke: #0c0c0c;
+  }
+
+  .license-footer-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.72rem;
     color: #71717a;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     padding-top: 12px;
+    letter-spacing: 0.02em;
   }
 
   @media (max-width: 600px) {

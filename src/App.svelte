@@ -3181,6 +3181,17 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
       <div class="footer-right">
         <span class="footer-credo">“We don’t wait for the future. We build it.”</span>
         <span class="footer-dot">•</span>
+        <span class="footer-contact-group">
+          <span class="footer-contact-label">Contact us:</span>
+          <a
+            href="mailto:contact@morrowless.io"
+            class="footer-contact-link"
+            title="Contact Morrowless at contact@morrowless.io"
+          >
+            <strong>contact@morrowless.io</strong>
+          </a>
+        </span>
+        <span class="footer-dot">•</span>
         <button
           type="button"
           class="footer-license-btn"
@@ -3412,6 +3423,35 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     font-style: italic;
     color: #71717a;
     font-size: 0.78rem;
+  }
+
+  .footer-contact-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.76rem;
+  }
+
+  .footer-contact-label {
+    color: #71717a;
+    font-size: 0.74rem;
+  }
+
+  .footer-contact-link {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    color: #18181b;
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+
+  .footer-contact-link strong {
+    font-weight: 600;
+  }
+
+  .footer-contact-link:hover {
+    color: #000000;
+    text-decoration: underline;
   }
 
   .footer-license-btn {
