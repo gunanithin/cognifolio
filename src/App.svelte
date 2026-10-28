@@ -611,17 +611,13 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
       }, 1400);
 
       const res = await uploadDocument(fileToUpload, retentionDays);
-      uploadStep = 4;
-      setTimeout(async () => {
-        uploadStep = 5;
-        selectedDoc = res;
-        await refreshAll();
-        setTimeout(() => {
-          isUploading = false;
-          uploadStep = 0;
-          activeTab = 'viewer';
-        }, 800);
-      }, 700);
+      uploadStep = 5;
+      selectedDoc = res;
+      documents = [res, ...documents.filter((d) => d.id !== res.id)];
+      isUploading = false;
+      uploadStep = 0;
+      activeTab = 'viewer';
+      refreshAll().catch(() => {});
     } catch (err) {
       errorMsg = err.message;
       isUploading = false;
