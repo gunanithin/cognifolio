@@ -54,6 +54,9 @@
 
   $: if (activeTab === 'viewer') {
     loadPdfViewer();
+    if (!selectedDoc && documents && documents.length > 0) {
+      selectedDoc = documents[0];
+    }
   }
 
   // Dynamic Lazy-Loaded Auth Modal
@@ -610,12 +613,21 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
     }
   }
 
-  async function viewDocumentDetail(docId) {
+  async function viewDocumentDetail(docOrId) {
     try {
-      selectedDoc = await getDocument(docId);
+      const id = typeof docOrId === 'object' && docOrId !== null ? docOrId.id || docOrId.document_id : docOrId;
+      if (!id) return;
+      selectedDoc = await getDocument(id);
       activeTab = 'viewer';
     } catch (err) {
-      errorMsg = err.message;
+      const id = typeof docOrId === 'object' && docOrId !== null ? docOrId.id || docOrId.document_id : docOrId;
+      const localDoc = documents.find((d) => d.id === id);
+      if (localDoc) {
+        selectedDoc = localDoc;
+        activeTab = 'viewer';
+      } else {
+        errorMsg = err.message || 'Failed to load document';
+      }
     }
   }
 
@@ -1576,7 +1588,11 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
                       class="flex items-center justify-between pt-3 border-t border-sand-border text-xs text-charcoal/60"
                     >
                       <span>Indexed: {item.uploaded_at}</span>
-                      <CButton variant="action" size="sm">
+                      <CButton
+                        variant="action"
+                        size="sm"
+                        on:click={() => viewDocumentDetail(item.document_id || item.id)}
+                      >
                         <span>Open Deep Dive Viewer →</span>
                       </CButton>
                     </div>
