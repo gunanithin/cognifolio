@@ -23,10 +23,10 @@ describe('DeleteConfirmModal Component Tests', () => {
       },
     });
     expect(html).not.toContain('role="dialog"');
-    expect(html).not.toContain('Permanently Delete');
+    expect(html).not.toContain('Delete Document?');
   });
 
-  it('renders document deletion dialog with metadata when open', () => {
+  it('renders minimal document deletion confirmation dialog when open', () => {
     const { html } = render(DeleteConfirmModal, {
       props: {
         isOpen: true,
@@ -35,19 +35,19 @@ describe('DeleteConfirmModal Component Tests', () => {
       },
     });
 
-    expect(html).toContain('Permanently Delete Document');
+    expect(html).toContain('Delete Document?');
     expect(html).toContain('Mutual Non-Disclosure Agreement');
-    expect(html).toContain('NDA_Master_Agreement_v2.pdf');
-    expect(html).toContain('NDA');
-    expect(html).toContain('doc-12345-6789');
-    expect(html).toContain('8 pages');
-    expect(html).toContain('1024 KB');
-    expect(html).toContain('Permanently Delete');
+    expect(html).toContain('Are you sure you want to permanently delete');
+    expect(html).toContain('This action cannot be undone');
+    expect(html).toContain('Delete');
     expect(html).toContain('Cancel');
-    expect(html).toContain('Irreversible Action');
+    // Ensure verbose clutter is NOT present
+    expect(html).not.toContain('Affected Systems:');
+    expect(html).not.toContain('What will be removed:');
+    expect(html).not.toContain('Neural vector embeddings in Qdrant');
   });
 
-  it('renders workspace purge dialog when in workspace mode', () => {
+  it('renders minimal workspace purge confirmation dialog when in workspace mode', () => {
     const { html } = render(DeleteConfirmModal, {
       props: {
         isOpen: true,
@@ -56,12 +56,14 @@ describe('DeleteConfirmModal Component Tests', () => {
       },
     });
 
-    expect(html).toContain('Purge Workspace Documents');
-    expect(html).toContain('Total Documents in Scope:');
+    expect(html).toContain('Purge Workspace?');
     expect(html).toContain('12 documents');
-    expect(html).toContain('PostgreSQL + Qdrant Vector Cloud');
-    expect(html).toContain('Full Database Reset');
-    expect(html).toContain('Purge Workspace Data');
+    expect(html).toContain('Purge Workspace');
+    expect(html).toContain('Cancel');
+    // Ensure verbose clutter is NOT present
+    expect(html).not.toContain('PostgreSQL + Qdrant Vector Cloud');
+    expect(html).not.toContain('Full Database Reset');
+    expect(html).not.toContain('Total Documents in Scope:');
   });
 
   it('renders loading spinner when isDeleting is true', () => {
