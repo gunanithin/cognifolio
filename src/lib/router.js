@@ -21,6 +21,7 @@ export const PATH_TO_TAB = {
   portal: 'portal',
   home: 'portal',
   documents: 'dashboard',
+  workspace: 'dashboard',
   dashboard: 'dashboard',
   upload: 'upload',
   viewer: 'viewer',

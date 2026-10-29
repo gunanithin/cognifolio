@@ -16,7 +16,7 @@ describe('AppHeader Component', () => {
     expect(html).toContain('Product');
     expect(html).toContain('Features');
     expect(html).toContain('How it works');
-    expect(html).toContain('Documents');
+    expect(html).toContain('Workspace');
     expect(html).toContain('Security');
     expect(html).toContain('Pricing');
     expect(html).toContain('Launch Studio ↗');
@@ -32,5 +32,17 @@ describe('AppHeader Component', () => {
 
     expect(html).toContain('AL');
     expect(html).toContain('+ Upload Document');
+  });
+
+  it('highlights Workspace nav link when in operational workspace tabs', () => {
+    const portalRender = render(AppHeader, {
+      props: { currentUser: null, activeTab: 'portal' },
+    });
+    expect(portalRender.html).not.toMatch(/class="[^"]*nav-workspace-link[^"]*active[^"]*"/);
+
+    const workspaceRender = render(AppHeader, {
+      props: { currentUser: null, activeTab: 'upload' },
+    });
+    expect(workspaceRender.html).toMatch(/class="[^"]*nav-workspace-link[^"]*active[^"]*"/);
   });
 });

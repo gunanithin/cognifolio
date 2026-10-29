@@ -83,10 +83,10 @@
       <a
         href="#documents"
         class="nav-workspace-link"
-        class:active={activeTab === 'dashboard'}
+        class:active={activeTab !== 'portal'}
         on:click|preventDefault={handleLaunchStudio}
       >
-        Documents
+        Workspace
       </a>
       <button type="button" class="nav-text-btn" on:click={openSecurityGuide}> Security </button>
       <button type="button" class="nav-text-btn" on:click={openPricing}>

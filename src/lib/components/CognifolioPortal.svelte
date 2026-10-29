@@ -5,6 +5,8 @@
 
   export let documents = [];
   export let currentUser = null;
+  export let showHeader = true;
+  export let showFooter = true;
 
   const dispatch = createEventDispatcher();
 
@@ -46,25 +48,27 @@
 </script>
 
 <div class="cognifolio-landing-root">
-  <!-- Top Navigation Header (Unified App Shell) -->
-  <AppHeader
-    {currentUser}
-    on:navigate={(e) => {
-      if (e.detail.tab && e.detail.tab !== 'portal') {
-        launchStudio(e.detail.tab);
-      } else if (e.detail.anchor) {
-        goToSection(e.detail.anchor);
-      } else {
-        goToSection('product');
-      }
-    }}
-    on:openSecurityGuide={openSecurityGuide}
-    on:openPricing={openPricing}
-    on:openMorrowless={openMorrowless}
-    on:triggerUpload={triggerUpload}
-    on:openAuthModal={(e) => dispatch('openAuthModal', e.detail)}
-    on:logout={() => dispatch('logout')}
-  />
+  {#if showHeader}
+    <!-- Top Navigation Header (Unified App Shell) -->
+    <AppHeader
+      {currentUser}
+      on:navigate={(e) => {
+        if (e.detail.tab && e.detail.tab !== 'portal') {
+          launchStudio(e.detail.tab);
+        } else if (e.detail.anchor) {
+          goToSection(e.detail.anchor);
+        } else {
+          goToSection('product');
+        }
+      }}
+      on:openSecurityGuide={openSecurityGuide}
+      on:openPricing={openPricing}
+      on:openMorrowless={openMorrowless}
+      on:triggerUpload={triggerUpload}
+      on:openAuthModal={(e) => dispatch('openAuthModal', e.detail)}
+      on:logout={() => dispatch('logout')}
+    />
+  {/if}
 
   <main>
     <!-- Hero Section -->
@@ -331,28 +335,30 @@
     </section>
   </main>
 
-  <!-- Editorial Landing Footer -->
-  <footer class="footer">
-    <div class="wrap foot">
-      <div>
-        &copy; 2026 <strong>Cognifolio by MORROWLESS</strong> &bull;
-        <button type="button" class="footer-credo-btn" on:click={openMorrowless}>
-          &ldquo;We don&rsquo;t wait for the future. We build it.&rdquo;
-        </button>
+  {#if showFooter}
+    <!-- Editorial Landing Footer -->
+    <footer class="footer">
+      <div class="wrap foot">
+        <div>
+          &copy; 2026 <strong>Cognifolio by MORROWLESS</strong> &bull;
+          <button type="button" class="footer-credo-btn" on:click={openMorrowless}>
+            &ldquo;We don&rsquo;t wait for the future. We build it.&rdquo;
+          </button>
+        </div>
+        <div class="foot-links">
+          <button type="button" class="footer-link-btn" on:click={openSecurityGuide}
+            >Privacy &amp; Protection</button
+          >
+          <span class="foot-dot">&bull;</span>
+          <button type="button" class="footer-link-btn" on:click={openPricing}
+            >Pricing &amp; Limits</button
+          >
+          <span class="foot-dot">&bull;</span>
+          <a href="mailto:contact@morrowless.io" class="footer-link-btn">contact@morrowless.io</a>
+        </div>
       </div>
-      <div class="foot-links">
-        <button type="button" class="footer-link-btn" on:click={openSecurityGuide}
-          >Privacy &amp; Protection</button
-        >
-        <span class="foot-dot">&bull;</span>
-        <button type="button" class="footer-link-btn" on:click={openPricing}
-          >Pricing &amp; Limits</button
-        >
-        <span class="foot-dot">&bull;</span>
-        <a href="mailto:contact@morrowless.io" class="footer-link-btn">contact@morrowless.io</a>
-      </div>
-    </div>
-  </footer>
+    </footer>
+  {/if}
 </div>
 
 <style>
