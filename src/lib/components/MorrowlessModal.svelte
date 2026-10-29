@@ -59,6 +59,10 @@
 
       <!-- Brand Logo / Wordmark -->
       <div class="brand-showcase">
+        <div class="emblem-wrap">
+          <img src="/morrowless-mark.png" alt="Morrowless M Emblem" class="emblem-img" />
+        </div>
+
         <div class="wordmark-wrap">
           <span class="wm-letter">M</span>
           <span class="wm-letter">O</span>
@@ -186,8 +190,21 @@
   }
 
   .brand-showcase {
-    padding: 48px 36px 36px;
-    background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.05) 0%, transparent 70%);
+    padding: 44px 36px 36px;
+    background: radial-gradient(circle at 50% 20%, rgba(242, 184, 75, 0.08) 0%, transparent 70%);
+  }
+
+  .emblem-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+
+  .emblem-img {
+    height: 64px;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 20px rgba(242, 184, 75, 0.3));
   }
 
   .wordmark-wrap {

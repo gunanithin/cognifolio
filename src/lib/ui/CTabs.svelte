@@ -20,7 +20,9 @@
     ? 'sticky top-[67px] z-40'
     : ''} {className}"
 >
-  <div class="c-tabs-container max-w-[1400px] w-full mx-auto px-6 sm:px-8 flex items-center gap-5 md:gap-6 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+  <div
+    class="c-tabs-container max-w-[1400px] w-full mx-auto px-6 sm:px-8 flex items-center gap-5 md:gap-6 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+  >
     {#each tabs as tab}
       <button
         type="button"
@@ -48,8 +50,8 @@
 
 <style>
   .c-tabs-nav {
-    background: #f6f6f6;
-    border-bottom: 1px solid #e5e5e5;
+    background: #08090b;
+    border-bottom: 1px solid #272a30;
   }
   .c-tabs-container {
     display: flex;
@@ -75,7 +77,7 @@
     background: transparent;
     border: none;
     border-bottom: 2px solid transparent;
-    color: #555555;
+    color: #9da2ab;
     font-size: 0.8rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -85,19 +87,19 @@
     transition: all 0.15s ease;
   }
   .c-tab-btn:hover {
-    color: #111111;
+    color: #f6f6f6;
   }
   .c-tab-btn.active {
-    color: #111111;
-    border-bottom-color: #111111;
+    color: #f2b84b;
+    border-bottom-color: #f2b84b;
     font-weight: 700;
   }
   .c-tab-badge {
-    background: #ffffff;
-    border: 1px solid #e5e5e5;
+    background: #1e1910;
+    border: 1px solid #5a4524;
     padding: 1px 6px;
     border-radius: 3px;
     font-size: 0.7rem;
-    color: #777777;
+    color: #ffd27d;
   }
 </style>
