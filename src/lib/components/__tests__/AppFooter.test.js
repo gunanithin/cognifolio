@@ -8,10 +8,11 @@ describe('AppFooter Component', () => {
 
     expect(html).toContain('Cognifolio');
     expect(html).toContain('MORROWLESS');
-    expect(html).toContain('We don’t wait for the future. We build it.');
+    expect(html).not.toContain('We don’t wait for the future. We build it.');
     expect(html).toContain('contact@morrowless.io');
-    expect(html).toContain('Plans &amp; Pricing');
+    expect(html).not.toContain('Plans &amp; Pricing');
+    expect(html).toContain('Terms');
     expect(html).toContain('Security &amp; Protection Policy');
-    expect(html).toContain('License &amp; Ownership');
+    expect(html).not.toContain('License &amp; Ownership');
   });
 });

@@ -44,9 +44,9 @@ describe('CognifolioPortal Component Tests', () => {
     expect(html).toContain('02 / RETRIEVE');
     expect(html).toContain('03 / ANALYSE');
 
-    // Verify Commercial CTA & Credo
+    // Verify Commercial CTA
     expect(html).toContain('Make every page count.');
-    expect(html).toContain('We don’t wait for the future. We build it.');
+    expect(html).not.toContain('We don’t wait for the future. We build it.');
   });
 
   it('renders active workspace files when documents are passed', () => {

@@ -1,5 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
+  import { fade } from 'svelte/transition';
   import { router, currentTab, currentParams } from './lib/router.js';
   import {
     fetchHealth,
@@ -26,6 +27,7 @@
   // Centralized UI Primitives, Shell Components & Workspace Modules
   import CTabs from './lib/ui/CTabs.svelte';
   import CProgressBar from './lib/ui/CProgressBar.svelte';
+  import CIcon from './lib/icons/CIcon.svelte';
   import { progress } from './lib/stores/progress.js';
 
   import AppHeader from './lib/components/AppHeader.svelte';
@@ -43,6 +45,7 @@
   import MorrowlessModal from './lib/components/MorrowlessModal.svelte';
   import SecurityGuideModal from './lib/components/SecurityGuideModal.svelte';
   import PricingModal from './lib/components/PricingModal.svelte';
+  import TermsModal from './lib/components/TermsModal.svelte';
 
   // Dynamic Lazy-Loaded PDF Viewer Component
   let PdfViewerComponent = null;
@@ -164,6 +167,7 @@
   let isMorrowlessModalOpen = false;
   let isSecurityGuideOpen = false;
   let isPricingModalOpen = false;
+  let isTermsModalOpen = false;
   let authModalMode = 'signin';
   let currentUser = getCurrentUser();
 
@@ -173,16 +177,48 @@
     isAuthModalOpen = true;
   }
 
+  // Global Data State & Notification Toasts
+  let health = { status: 'checking...', gemini_model: '', qdrant_location: '' };
+  let stats = null;
+  let documents = [];
+  let selectedDoc = null;
+  let errorMsg = '';
+  let successMsg = '';
+  let successTimer = null;
+  let errorTimer = null;
+
+  function showSuccess(msg, duration = 4500) {
+    if (successTimer) clearTimeout(successTimer);
+    successMsg = msg;
+    if (duration > 0 && typeof window !== 'undefined') {
+      successTimer = setTimeout(() => {
+        successMsg = '';
+        successTimer = null;
+      }, duration);
+    }
+  }
+
+  function showError(msg, duration = 6500) {
+    if (errorTimer) clearTimeout(errorTimer);
+    errorMsg = msg;
+    if (duration > 0 && typeof window !== 'undefined') {
+      errorTimer = setTimeout(() => {
+        errorMsg = '';
+        errorTimer = null;
+      }, duration);
+    }
+  }
+
   async function handleAuthSuccess(event) {
     currentUser = event.detail.user;
     selectedDoc = null;
-    successMsg = currentUser.is_guest
-      ? 'Welcome to the Cognifolio Guest Playground!'
-      : `Welcome back, ${currentUser.name}!`;
+    showSuccess(
+      currentUser.is_guest
+        ? 'Welcome to the Cognifolio Guest Playground!'
+        : `Welcome back, ${currentUser.name}!`,
+      4000,
+    );
     await refreshAll();
-    setTimeout(() => {
-      successMsg = '';
-    }, 3500);
   }
 
   async function handleLogout() {
@@ -194,19 +230,8 @@
       currentUser = g.user;
     } catch {}
     await refreshAll();
-    successMsg = 'Signed out. Switched to an isolated guest session.';
-    setTimeout(() => {
-      successMsg = '';
-    }, 3000);
+    showSuccess('Signed out. Switched to an isolated guest session.', 3500);
   }
-
-  // Global Data State
-  let health = { status: 'checking...', gemini_model: '', qdrant_location: '' };
-  let stats = null;
-  let documents = [];
-  let selectedDoc = null;
-  let errorMsg = '';
-  let successMsg = '';
 
   $: totalPages = documents.reduce((acc, d) => acc + (d.page_count || 1), 0);
 
@@ -316,6 +341,8 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
 
   onDestroy(() => {
     if (cleanupRouter) cleanupRouter();
+    if (successTimer) clearTimeout(successTimer);
+    if (errorTimer) clearTimeout(errorTimer);
   });
 
   onMount(async () => {
@@ -384,7 +411,7 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
       }
     } catch (err) {
       if (!isInitial) {
-        errorMsg = err.message;
+        showError(err.message);
       } else {
         console.warn('Backend warm-up in progress:', err.message);
       }
@@ -407,7 +434,7 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
   async function handleFileUpload(fileToUpload) {
     if (!fileToUpload) return;
     if (fileToUpload.size > 50 * 1024 * 1024) {
-      errorMsg = 'File size exceeds maximum limit of 50MB. Please select a document under 50MB.';
+      showError('File size exceeds maximum limit of 50MB. Please select a document under 50MB.');
       return;
     }
     isUploading = true;
@@ -429,10 +456,10 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
       isUploading = false;
       uploadStep = 0;
       switchTab('viewer', { params: { docId: res.id } });
-      successMsg = `Document "${res.original_filename}" processed & ready in Studio Viewer.`;
+      showSuccess(`Document "${res.original_filename}" processed & ready in Studio Viewer.`, 4500);
       refreshAll().catch(() => {});
     } catch (err) {
-      errorMsg = err.message;
+      showError(err.message);
       isUploading = false;
       uploadStep = 0;
     }
@@ -455,7 +482,7 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
       searchResults = res.results || [];
       switchTab('search', { params: { q } });
     } catch (err) {
-      errorMsg = err.message;
+      showError(err.message);
     } finally {
       isSearching = false;
     }
@@ -480,7 +507,7 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
         selectedDoc = localDoc;
         switchTab('viewer', { params: { docId: id } });
       } else {
-        errorMsg = err.message || 'Failed to load document';
+        showError(err.message || 'Failed to load document');
       }
     }
   }
@@ -492,16 +519,10 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
       const updatedDoc = await reanalyzeDocument(docId);
       selectedDoc = updatedDoc;
       documents = documents.map((d) => (d.id === docId ? updatedDoc : d));
-      successMsg = 'Document re-analysis completed successfully.';
-      setTimeout(() => {
-        successMsg = '';
-      }, 3500);
+      showSuccess('Document re-analysis completed successfully.', 3500);
     } catch (err) {
       console.error('Re-analysis error:', err);
-      errorMsg = err.message || 'Network error while requesting AI re-analysis.';
-      setTimeout(() => {
-        errorMsg = '';
-      }, 4000);
+      showError(err.message || 'Network error while requesting AI re-analysis.', 4500);
     } finally {
       isReanalyzing = false;
     }
@@ -549,10 +570,10 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
         }
         await refreshAll();
         isDeleteModalOpen = false;
-        successMsg = 'All workspace documents and vector embeddings have been securely purged.';
-        setTimeout(() => {
-          successMsg = '';
-        }, 4000);
+        showSuccess(
+          'All workspace documents and vector embeddings have been securely purged.',
+          4000,
+        );
       } else if (docToDelete) {
         const id = docToDelete.id;
         documents = documents.filter((d) => d.id !== id);
@@ -566,13 +587,10 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
         await refreshAll();
         isDeleteModalOpen = false;
         docToDelete = null;
-        successMsg = 'Document and vector embeddings permanently deleted.';
-        setTimeout(() => {
-          successMsg = '';
-        }, 3500);
+        showSuccess('Document and vector embeddings permanently deleted.', 3500);
       }
     } catch (err) {
-      errorMsg = err.message;
+      showError(err.message);
     } finally {
       isDeletingDoc = false;
     }
@@ -620,21 +638,23 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
 
   async function handleRunComparison() {
     if (!compareBaseDocId || !compareTargetDocId) {
-      errorMsg = 'Please select both Document A and Document B to compare.';
+      showError('Please select both Document A and Document B to compare.');
       return;
     }
     if (compareBaseDocId === compareTargetDocId) {
-      errorMsg = 'Please select two different documents to perform redline comparison.';
+      showError('Please select two different documents to perform redline comparison.');
       return;
     }
     isComparing = true;
     errorMsg = '';
     try {
       comparisonResult = await compareDocuments(compareBaseDocId, compareTargetDocId);
-      successMsg = `Redline analysis completed: ${comparisonResult.diffs.length} material differences detected.`;
-      setTimeout(() => (successMsg = ''), 4000);
+      showSuccess(
+        `Redline analysis completed: ${comparisonResult.diffs.length} material differences detected.`,
+        4000,
+      );
     } catch (e) {
-      errorMsg = 'Comparison failed: ' + e.message;
+      showError('Comparison failed: ' + e.message);
     } finally {
       isComparing = false;
     }
@@ -843,13 +863,10 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     try {
       isExportingAudit = true;
       await downloadAuditExport(format);
-      successMsg = `Audit trail successfully exported as ${format.toUpperCase()}`;
-      setTimeout(() => {
-        successMsg = '';
-      }, 4000);
+      showSuccess(`Audit trail successfully exported as ${format.toUpperCase()}`, 4000);
       await refreshCompliance();
     } catch (err) {
-      errorMsg = err.message;
+      showError(err.message);
     } finally {
       isExportingAudit = false;
     }
@@ -893,7 +910,6 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     on:openSecurityGuide={() => (isSecurityGuideOpen = true)}
     on:openPricing={() => (isPricingModalOpen = true)}
     on:openMorrowless={() => (isMorrowlessModalOpen = true)}
-    on:triggerUpload={triggerFileInput}
     on:openAuthModal={(e) => openAuthModal(e.detail?.mode || 'signin')}
     on:logout={handleLogout}
   />
@@ -905,18 +921,66 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     </div>
   {/if}
 
-  <!-- Notifications & Global Alerts -->
-  {#if errorMsg}
-    <div class="alert alert-error">
-      <span>⚠️ {errorMsg}</span>
-      <button type="button" class="close-btn" on:click={() => (errorMsg = '')}>✕</button>
-    </div>
-  {/if}
+  <!-- Notifications & Global Alerts (Luxury Floating Editorial Toast) -->
+  {#if errorMsg || successMsg}
+    <div class="notification-toast-anchor" aria-live="polite">
+      {#if successMsg}
+        <div class="cognifolio-toast toast-success" transition:fade={{ duration: 150 }}>
+          <div class="toast-indicator success-indicator">
+            <CIcon name="check" size={15} />
+          </div>
+          <div class="toast-body">
+            <div class="toast-kicker">
+              <span class="toast-kicker-dot success-dot"></span>
+              <span>WORKSPACE NOTICE</span>
+            </div>
+            <p class="toast-text">{successMsg}</p>
+          </div>
+          <button
+            type="button"
+            class="toast-close-btn"
+            on:click={() => {
+              successMsg = '';
+              if (successTimer) clearTimeout(successTimer);
+            }}
+            aria-label="Dismiss notification"
+          >
+            <CIcon name="close" size={13} />
+          </button>
+          <div class="toast-progress-bar">
+            <div class="toast-progress-fill success-fill"></div>
+          </div>
+        </div>
+      {/if}
 
-  {#if successMsg}
-    <div class="alert alert-success">
-      <span>✅ {successMsg}</span>
-      <button type="button" class="close-btn" on:click={() => (successMsg = '')}>✕</button>
+      {#if errorMsg}
+        <div class="cognifolio-toast toast-error" transition:fade={{ duration: 150 }}>
+          <div class="toast-indicator error-indicator">
+            <CIcon name="warning" size={15} />
+          </div>
+          <div class="toast-body">
+            <div class="toast-kicker error-kicker">
+              <span class="toast-kicker-dot error-dot"></span>
+              <span>ATTENTION REQUIRED</span>
+            </div>
+            <p class="toast-text">{errorMsg}</p>
+          </div>
+          <button
+            type="button"
+            class="toast-close-btn"
+            on:click={() => {
+              errorMsg = '';
+              if (errorTimer) clearTimeout(errorTimer);
+            }}
+            aria-label="Dismiss error notification"
+          >
+            <CIcon name="close" size={13} />
+          </button>
+          <div class="toast-progress-bar">
+            <div class="toast-progress-fill error-fill"></div>
+          </div>
+        </div>
+      {/if}
     </div>
   {/if}
 
@@ -1053,6 +1117,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
 
   <!-- Bottom Navigation Bar (Single Persistent Unified Cognifolio Footer) -->
   <AppFooter
+    on:openTerms={() => (isTermsModalOpen = true)}
     on:openPricing={() => (isPricingModalOpen = true)}
     on:openSecurityGuide={() => (isSecurityGuideOpen = true)}
     on:openMorrowless={() => (isMorrowlessModalOpen = true)}
@@ -1060,6 +1125,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
 
   <!-- Global Modals (Mounted once at the SPA root) -->
   <PricingModal bind:isOpen={isPricingModalOpen} />
+  <TermsModal bind:isOpen={isTermsModalOpen} />
   <MorrowlessModal bind:isOpen={isMorrowlessModalOpen} />
   <SecurityGuideModal bind:isOpen={isSecurityGuideOpen} />
 
@@ -1117,63 +1183,201 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     padding: 0 0 40px;
   }
 
-  /* Global Alert Banners */
-  .alert {
-    width: min(1380px, calc(100% - 40px));
-    margin: 16px auto 0;
-    padding: 12px 18px;
-    border-radius: var(--radius-sm);
+  /* Luxury Floating Editorial Notification Toasts */
+  .notification-toast-anchor {
+    position: fixed;
+    top: 84px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1050;
     display: flex;
+    flex-direction: column;
+    gap: 10px;
     align-items: center;
-    justify-content: space-between;
-    font-size: 0.88rem;
-    font-weight: 500;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-    animation: slideDown 0.2s ease-out;
+    pointer-events: none;
+    width: min(580px, calc(100% - 32px));
   }
 
-  .alert-error {
-    background: #2a1215;
-    border: 1px solid #632025;
+  .cognifolio-toast {
+    pointer-events: auto;
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    background: rgba(12, 14, 18, 0.94);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 12px;
+    padding: 12px 14px 14px 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    animation: toastSlideDown 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .cognifolio-toast.toast-success {
+    border: 1px solid rgba(202, 138, 4, 0.28);
+    box-shadow:
+      0 18px 42px -6px rgba(0, 0, 0, 0.65),
+      0 0 0 1px rgba(202, 138, 4, 0.15),
+      0 0 24px -2px rgba(16, 185, 129, 0.12);
+  }
+
+  .cognifolio-toast.toast-error {
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    box-shadow:
+      0 18px 42px -6px rgba(0, 0, 0, 0.65),
+      0 0 0 1px rgba(239, 68, 68, 0.18),
+      0 0 24px -2px rgba(239, 68, 68, 0.15);
+  }
+
+  .toast-indicator {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .toast-indicator.success-indicator {
+    background: rgba(16, 185, 129, 0.14);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #34d399;
+  }
+
+  .toast-indicator.error-indicator {
+    background: rgba(239, 68, 68, 0.14);
+    border: 1px solid rgba(239, 68, 68, 0.3);
     color: #f87171;
   }
 
-  .alert-success {
-    background: #12281e;
-    border: 1px solid #1e5a40;
-    color: #67d8a2;
+  .toast-body {
+    flex: 1;
+    min-width: 0;
   }
 
-  .close-btn {
+  .toast-kicker {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #ca8a04;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+
+  .toast-kicker.error-kicker {
+    color: #f87171;
+  }
+
+  .toast-kicker-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+  }
+
+  .toast-kicker-dot.success-dot {
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981;
+  }
+
+  .toast-kicker-dot.error-dot {
+    background: #ef4444;
+    box-shadow: 0 0 6px #ef4444;
+  }
+
+  .toast-text {
+    margin: 0;
+    font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: #f3f4f6;
+    font-weight: 450;
+    word-break: break-word;
+  }
+
+  .toast-close-btn {
     background: transparent;
     border: none;
-    color: inherit;
-    font-size: 1rem;
+    color: #9ca3af;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
-    padding: 0 4px;
-    opacity: 0.8;
+    flex-shrink: 0;
+    transition: all 0.15s ease-out;
+    margin-top: 1px;
+    padding: 0;
   }
 
-  .close-btn:hover {
-    opacity: 1;
+  .toast-close-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.08);
   }
 
-  @keyframes slideDown {
+  .toast-progress-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+  }
+
+  .toast-progress-fill {
+    height: 100%;
+    width: 100%;
+    transform-origin: left;
+    animation: toastDecay linear forwards;
+  }
+
+  .toast-progress-fill.success-fill {
+    background: linear-gradient(90deg, #ca8a04, #10b981);
+    animation-duration: 4.5s;
+  }
+
+  .toast-progress-fill.error-fill {
+    background: linear-gradient(90deg, #f87171, #ef4444);
+    animation-duration: 6.5s;
+  }
+
+  @keyframes toastDecay {
+    from {
+      transform: scaleX(1);
+    }
+    to {
+      transform: scaleX(0);
+    }
+  }
+
+  @keyframes toastSlideDown {
     from {
       opacity: 0;
-      transform: translateY(-8px);
+      transform: translateY(-12px) scale(0.98);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
+      transform: translateY(0) scale(1);
     }
   }
 
   @media (max-width: 600px) {
     .workspace-navigation-ribbon,
-    .content-container,
-    .alert {
+    .content-container {
       width: calc(100% - 24px);
+    }
+    .notification-toast-anchor {
+      width: calc(100% - 24px);
+      top: 76px;
     }
   }
 </style>

@@ -92,7 +92,8 @@
               Explore Cognifolio →
             </button>
             <button type="button" class="btn secondary" on:click={triggerUpload}>
-              ⚡ &nbsp; Upload Document
+              <CIcon name="upload" size={16} />
+              <span>Upload Document</span>
             </button>
             <button type="button" class="btn ghost" on:click={openPricing}>
               Pricing &amp; Limits
@@ -340,10 +341,7 @@
     <footer class="footer">
       <div class="wrap foot">
         <div>
-          &copy; 2026 <strong>Cognifolio by MORROWLESS</strong> &bull;
-          <button type="button" class="footer-credo-btn" on:click={openMorrowless}>
-            &ldquo;We don&rsquo;t wait for the future. We build it.&rdquo;
-          </button>
+          &copy; 2026 <strong>Cognifolio by MORROWLESS</strong>
         </div>
         <div class="foot-links">
           <button type="button" class="footer-link-btn" on:click={openSecurityGuide}
@@ -842,21 +840,6 @@
 
   .footer strong {
     color: #eeeeee;
-  }
-
-  .footer-credo-btn {
-    background: transparent;
-    border: none;
-    color: #969ba4;
-    font-style: italic;
-    cursor: pointer;
-    padding: 0;
-    font-size: inherit;
-    transition: color 0.15s ease;
-  }
-
-  .footer-credo-btn:hover {
-    color: var(--amber);
   }
 
   .foot-links {

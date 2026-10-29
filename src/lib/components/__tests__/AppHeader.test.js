@@ -19,7 +19,7 @@ describe('AppHeader Component', () => {
     expect(html).toContain('Workspace');
     expect(html).toContain('Security');
     expect(html).toContain('Pricing');
-    expect(html).toContain('Launch Studio ↗');
+    expect(html).not.toContain('Launch Studio ↗');
   });
 
   it('renders user chip when logged in', () => {
@@ -31,7 +31,7 @@ describe('AppHeader Component', () => {
     });
 
     expect(html).toContain('AL');
-    expect(html).toContain('+ Upload Document');
+    expect(html).not.toContain('+ Upload Document');
   });
 
   it('highlights Workspace nav link when in operational workspace tabs', () => {

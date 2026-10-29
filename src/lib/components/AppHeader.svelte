@@ -32,10 +32,6 @@
     dispatch('openMorrowless');
   }
 
-  function triggerUpload() {
-    dispatch('triggerUpload');
-  }
-
   function openAuth(mode) {
     isUserMenuOpen = false;
     dispatch('openAuthModal', { mode });
@@ -143,17 +139,6 @@
           </div>
         {/if}
       </div>
-
-      <!-- Main Action Button -->
-      {#if activeTab === 'portal'}
-        <button type="button" class="btn-studio-cta" on:click={handleLaunchStudio}>
-          Launch Studio ↗
-        </button>
-      {:else}
-        <button type="button" class="btn-studio-cta secondary-cta" on:click={triggerUpload}>
-          + Upload Document
-        </button>
-      {/if}
     </div>
   </div>
 </header>
@@ -401,40 +386,6 @@
   .menu-item-btn.highlight-btn {
     color: #f2b84b;
     font-weight: 600;
-  }
-
-  /* Main Action CTA */
-  .btn-studio-cta {
-    background: #f2b84b;
-    color: #08090b;
-    font-weight: 700;
-    border-radius: 8px;
-    padding: 9px 18px;
-    font-size: 13px;
-    border: 1px solid #f2b84b;
-    cursor: pointer;
-    box-shadow: 0 2px 10px rgba(242, 184, 75, 0.2);
-    transition: all 0.15s ease;
-    white-space: nowrap;
-  }
-
-  .btn-studio-cta:hover {
-    background: #e5ab3e;
-    box-shadow: 0 4px 16px rgba(242, 184, 75, 0.35);
-    transform: translateY(-1px);
-  }
-
-  .btn-studio-cta.secondary-cta {
-    background: #161922;
-    color: #f6f6f6;
-    border-color: #2b2e35;
-    box-shadow: none;
-  }
-
-  .btn-studio-cta.secondary-cta:hover {
-    background: #1c212c;
-    border-color: #f2b84b;
-    color: #f2b84b;
   }
 
   @media (max-width: 820px) {

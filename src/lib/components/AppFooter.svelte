@@ -7,6 +7,10 @@
     dispatch('openMorrowless');
   }
 
+  function openTerms() {
+    dispatch('openTerms');
+  }
+
   function openPricing() {
     dispatch('openPricing');
   }
@@ -32,8 +36,6 @@
       </button>
     </div>
     <div class="footer-right">
-      <span class="footer-credo">“We don’t wait for the future. We build it.”</span>
-      <span class="footer-dot">•</span>
       <span class="footer-contact-group">
         <span class="footer-contact-label">Contact us:</span>
         <a
@@ -48,10 +50,10 @@
       <button
         type="button"
         class="footer-license-btn"
-        on:click={openPricing}
-        title="View Morrowless Commercial Plans & Free Early Access Limits"
+        on:click={openTerms}
+        title="View Terms of Service & Legal Notice"
       >
-        Plans &amp; Pricing
+        Terms
       </button>
       <span class="footer-dot">•</span>
       <button
@@ -61,10 +63,6 @@
         title="Read Document Security & Protection Policy"
       >
         Security &amp; Protection Policy
-      </button>
-      <span class="footer-dot">•</span>
-      <button type="button" class="footer-license-btn" on:click={openMorrowless}>
-        License &amp; Ownership
       </button>
     </div>
   </div>
@@ -144,13 +142,6 @@
     text-decoration: underline;
   }
 
-  .footer-credo {
-    font-family: var(--font-heading);
-    font-style: italic;
-    color: #717682;
-    font-size: 0.78rem;
-  }
-
   .footer-contact-group {
     display: inline-flex;
     align-items: center;
@@ -196,12 +187,6 @@
     background: #20242e;
     color: #ffffff;
     border-color: #3b3f49;
-  }
-
-  @media (max-width: 900px) {
-    .footer-credo {
-      display: none;
-    }
   }
 
   @media (max-width: 768px) {
