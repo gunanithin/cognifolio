@@ -77,15 +77,18 @@
     left: 0;
     right: 0;
     z-index: 90;
-    border-top: 1px solid #25282e;
-    background: rgba(8, 9, 11, 0.96);
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-footer);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     padding: 10px 24px calc(10px + env(safe-area-inset-bottom, 0px)) 24px;
     font-size: 0.78rem;
-    color: #71717a;
-    box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.45);
+    color: var(--text-dim);
+    box-shadow: var(--shadow-card);
     width: 100%;
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease;
   }
 
   .footer-inner {
@@ -131,12 +134,12 @@
     font-family: var(--font-heading);
     font-weight: 600;
     font-size: 0.92rem;
-    color: #f6f6f6;
+    color: var(--text-main);
     letter-spacing: -0.01em;
   }
 
   .footer-dot {
-    color: #3b3f49;
+    color: var(--border-dark);
     user-select: none;
   }
 
@@ -145,19 +148,19 @@
     border: none;
     padding: 0;
     font-size: 0.78rem;
-    color: #9da2ab;
+    color: var(--text-muted);
     cursor: pointer;
     transition: color 0.15s ease;
     text-align: left;
   }
 
   .footer-org-link strong {
-    color: #f6f6f6;
+    color: var(--text-main);
     letter-spacing: 0.06em;
   }
 
   .footer-org-link:hover {
-    color: #ffffff;
+    color: var(--theme-dark);
     text-decoration: underline;
   }
 
@@ -169,14 +172,14 @@
   }
 
   .footer-contact-label {
-    color: #71717a;
+    color: var(--text-dim);
     font-size: 0.74rem;
   }
 
   .footer-contact-link {
     font-family: var(--font-mono);
     font-size: 0.74rem;
-    color: #f6f6f6;
+    color: var(--text-main);
     text-decoration: none;
     transition: color 0.15s ease;
   }
@@ -186,18 +189,18 @@
   }
 
   .footer-contact-link:hover {
-    color: #f2b84b;
+    color: var(--theme-dark);
     text-decoration: underline;
   }
 
   .footer-license-btn {
-    background: #14171d;
-    border: 1px solid #2b2e35;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
     padding: 3px 9px;
     border-radius: 4px;
     font-size: 0.72rem;
     font-weight: 500;
-    color: #8a8f98;
+    color: var(--text-muted);
     cursor: pointer;
     transition: all 0.15s ease;
     display: inline-flex;
@@ -206,9 +209,9 @@
   }
 
   .footer-license-btn:hover {
-    background: #20242e;
-    color: #ffffff;
-    border-color: #3b3f49;
+    background: var(--bg-card-hover);
+    color: var(--text-main);
+    border-color: var(--theme-dark);
   }
 
   /* Responsive Multi-Screen Rules */

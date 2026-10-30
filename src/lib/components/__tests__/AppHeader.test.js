@@ -45,4 +45,12 @@ describe('AppHeader Component', () => {
     });
     expect(workspaceRender.html).toMatch(/class="[^"]*nav-workspace-link[^"]*active[^"]*"/);
   });
+
+  it('renders theme toggle button with light theme active by default', () => {
+    const { html } = render(AppHeader, {
+      props: { currentUser: null, activeTab: 'portal' },
+    });
+    expect(html).toContain('theme-toggle-btn');
+    expect(html).toContain('Switch to Dark Mode');
+  });
 });

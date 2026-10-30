@@ -4,22 +4,22 @@ export default {
   theme: {
     extend: {
       colors: {
-        paper: '#08090b',
+        paper: 'var(--bg-primary)',
         surface: {
-          DEFAULT: '#121419',
-          subtle: '#14171d',
-          hover: '#181b22',
-          active: '#20242e',
+          DEFAULT: 'var(--bg-card)',
+          subtle: 'var(--bg-subtle)',
+          hover: 'var(--bg-card-hover)',
+          active: 'var(--bg-active)',
         },
         ink: {
-          DEFAULT: '#f6f6f6',
-          muted: '#b4b8c0',
-          dim: '#7e838f',
-          inverse: '#08090b',
+          DEFAULT: 'var(--text-main)',
+          muted: 'var(--text-muted)',
+          dim: 'var(--text-dim)',
+          inverse: 'var(--text-inverse)',
         },
         border: {
-          hairline: '#2b2e35',
-          strong: '#3b3f49',
+          hairline: 'var(--border-color)',
+          strong: 'var(--border-dark)',
         },
         brand: {
           dark: '#f2b84b',
@@ -28,29 +28,29 @@ export default {
         },
         status: {
           success: {
-            bg: '#12281e',
-            border: '#1e5a40',
-            text: '#67d8a2',
+            bg: 'var(--status-emerald-bg)',
+            border: 'var(--status-emerald-border)',
+            text: 'var(--status-emerald-text)',
           },
           warning: {
-            bg: '#261c0e',
-            border: '#5a4524',
-            text: '#f2b84b',
+            bg: 'var(--status-amber-bg)',
+            border: 'var(--status-amber-border)',
+            text: 'var(--status-amber-text)',
           },
           danger: {
-            bg: '#2a1215',
-            border: '#632025',
-            text: '#f87171',
+            bg: 'var(--status-rose-bg)',
+            border: 'var(--status-rose-border)',
+            text: 'var(--status-rose-text)',
           },
           indigo: {
-            bg: '#18192c',
-            border: '#323564',
-            text: '#a5b4fc',
+            bg: 'var(--status-indigo-bg)',
+            border: 'var(--status-indigo-border)',
+            text: 'var(--status-indigo-text)',
           },
           slate: {
-            bg: '#161922',
-            border: '#2c3342',
-            text: '#cbd5e1',
+            bg: 'var(--status-slate-bg)',
+            border: 'var(--status-slate-border)',
+            text: 'var(--status-slate-text)',
           },
         },
       },

@@ -2279,9 +2279,9 @@
   }
 
   .tool-btn {
-    background: #ffffff;
-    color: #111111;
-    border: 1px solid #e5e5e5;
+    background: var(--bg-card);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
     width: 26px;
     height: 26px;
     border-radius: 3px;
@@ -2294,9 +2294,9 @@
   }
 
   .tool-btn:hover:not(:disabled) {
-    background: #111111;
-    color: #ffffff;
-    border-color: #111111;
+    background: var(--bg-card-hover);
+    color: var(--theme-dark-hover);
+    border-color: var(--theme-dark);
   }
 
   .tool-btn:disabled {

@@ -7,7 +7,89 @@
    Changing values here propagates automatically across the entire app.
    ========================================================================== */
 
-:root {
+:root,
+[data-theme='light'] {
+  /* Surface & Canvas Colors (Enterprise Clean Light Theme - Default) */
+  --bg-primary: #f8f9fa;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --bg-subtle: #f1f5f9;
+  --bg-active: #e2e8f0;
+  --bg-header: rgba(255, 255, 255, 0.94);
+  --bg-footer: rgba(255, 255, 255, 0.96);
+
+  /* Ink & Typography Colors */
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --text-dim: #64748b;
+  --text-inverse: #ffffff;
+
+  /* Borders & Dividers */
+  --border-color: #e2e8f0;
+  --border-dark: #cbd5e1;
+  --border-glow: rgba(242, 184, 75, 0.25);
+
+  /* Primary Theme Accents (Amber & Gold - Preserved across both themes) */
+  --theme-dark: #f2b84b;
+  --theme-dark-hover: #e5ab3e;
+  --theme-light: #16181f;
+  --theme-light-hover: #222630;
+  --color-gold: #ca8a04;
+  --color-gold-text: #b45309;
+
+  /* Semantic Status Colors (Enterprise Accessible Light Contrast) */
+  --status-emerald-bg: #ecfdf5;
+  --status-emerald-border: #a7f3d0;
+  --status-emerald-text: #047857;
+
+  --status-amber-bg: #fffbeb;
+  --status-amber-border: #fde68a;
+  --status-amber-text: #b45309;
+
+  --status-rose-bg: #fef2f2;
+  --status-rose-border: #fecaca;
+  --status-rose-text: #b91c1c;
+
+  --status-indigo-bg: #eef2ff;
+  --status-indigo-border: #c7d2fe;
+  --status-indigo-text: #4338ca;
+
+  --status-slate-bg: #f1f5f9;
+  --status-slate-border: #cbd5e1;
+  --status-slate-text: #334155;
+
+  /* Legacy Accent Variable Aliases */
+  --accent-cyan: #d97706;
+  --accent-blue: #0284c7;
+  --accent-purple: #6366f1;
+  --accent-emerald: #059669;
+  --accent-amber: #d97706;
+  --accent-rose: #dc2626;
+
+  /* Typography Stack */
+  --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-sans:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Radii */
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-full: 9999px;
+
+  /* Elevation Shadows */
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.05), 0 1px 2px rgba(15, 23, 42, 0.03);
+  --shadow-hover: 0 4px 14px rgba(15, 23, 42, 0.08);
+  --shadow-elevated: 0 12px 30px rgba(15, 23, 42, 0.12);
+}
+
+[data-theme='dark'] {
   /* Surface & Canvas Colors (Midnight Dark Theme) */
   --bg-primary: #08090b;
   --bg-secondary: #121419;
@@ -15,6 +97,8 @@
   --bg-card-hover: #171a21;
   --bg-subtle: #14171d;
   --bg-active: #20242e;
+  --bg-header: rgba(8, 9, 11, 0.94);
+  --bg-footer: rgba(8, 9, 11, 0.96);
 
   /* Ink & Typography Colors */
   --text-main: #f6f6f6;
@@ -33,6 +117,7 @@
   --theme-light: #16181f;
   --theme-light-hover: #222630;
   --color-gold: #f2b84b;
+  --color-gold-text: #f2b84b;
 
   /* Semantic Status Colors (Dark Midnight Muted Tones) */
   --status-emerald-bg: #12281e;
@@ -55,7 +140,7 @@
   --status-slate-border: #2c3342;
   --status-slate-text: #cbd5e1;
 
-  /* Legacy Accent Variable Aliases (for backward compatibility) */
+  /* Legacy Accent Variable Aliases */
   --accent-cyan: #f2b84b;
   --accent-blue: #38bdf8;
   --accent-purple: #818cf8;
@@ -63,26 +148,10 @@
   --accent-amber: #f2b84b;
   --accent-rose: #f87171;
 
-  /* Typography Stack */
-  --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-body:
-    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --font-sans:
-    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-
-  /* Radii */
-  --radius-xs: 3px;
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-full: 9999px;
-
   /* Elevation Shadows */
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
-  --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.07);
-  --shadow-elevated: 0 12px 30px rgba(0, 0, 0, 0.12);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-hover: 0 4px 14px rgba(0, 0, 0, 0.4);
+  --shadow-elevated: 0 12px 30px rgba(0, 0, 0, 0.5);
 }
 
 /* ==========================================================================
@@ -441,10 +510,10 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2b2e35;
+  background: var(--border-dark, #cbd5e1);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3b3f49;
+  background: var(--text-dim, #94a3b8);
 }

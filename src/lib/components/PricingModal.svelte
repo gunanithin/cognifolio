@@ -299,17 +299,15 @@
     width: 100%;
     max-width: 960px;
     max-height: 92vh;
-    background: #121419;
-    border: 1px solid #2b2e35;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
-    box-shadow:
-      0 25px 60px -15px rgba(0, 0, 0, 0.6),
-      0 0 0 1px rgba(255, 255, 255, 0.05);
+    box-shadow: var(--shadow-elevated);
     display: flex;
     flex-direction: column;
     overflow: hidden;
     cursor: default;
-    color: #f6f6f6;
+    color: var(--text-main);
     font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
   }
 
@@ -320,9 +318,9 @@
     width: 30px;
     height: 30px;
     border-radius: 50%;
-    background: #161922;
-    border: 1px solid #2b2e35;
-    color: #9da2ab;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -332,15 +330,15 @@
   }
 
   .modal-close-btn:hover {
-    background: #20242e;
-    color: #f6f6f6;
-    border-color: #f2b84b;
+    background: var(--bg-card-hover);
+    color: var(--text-main);
+    border-color: var(--theme-dark);
   }
 
   /* Header */
   .modal-header {
-    background: #14171d;
-    border-bottom: 1px solid #2b2e35;
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border-color);
     padding: 1.75rem 2rem 1.25rem 2rem;
   }
 
@@ -349,9 +347,9 @@
     align-items: center;
     gap: 0.45rem;
     padding: 0.2rem 0.65rem;
-    background: #261c0e;
-    border: 1px solid #5a4524;
-    color: #f2b84b;
+    background: var(--status-amber-bg);
+    border: 1px solid var(--status-amber-border);
+    color: var(--status-amber-text);
     font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.05em;
@@ -363,7 +361,7 @@
     font-family: var(--font-heading, 'Playfair Display', Georgia, serif);
     font-size: 1.6rem;
     font-weight: 700;
-    color: #f6f6f6;
+    color: var(--text-main);
     margin: 0 0 0.35rem 0;
     letter-spacing: -0.02em;
     line-height: 1.25;
@@ -371,14 +369,14 @@
 
   .header-subtitle {
     font-size: 0.88rem;
-    color: #b4b8c0;
+    color: var(--text-muted);
     line-height: 1.45;
     margin: 0 0 1rem 0;
     max-width: 680px;
   }
 
   .header-subtitle strong {
-    color: #f6f6f6;
+    color: var(--text-main);
   }
 
   /* Early Access Active Banner */
@@ -386,8 +384,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: #12281e;
-    border: 1px solid #1e5a40;
+    background: var(--status-emerald-bg);
+    border: 1px solid var(--status-emerald-border);
     border-radius: 8px;
     padding: 0.75rem 1rem;
     gap: 1rem;
@@ -427,7 +425,7 @@
   /* Body */
   .modal-body {
     padding: 1.5rem 2rem;
-    background: #121419;
+    background: var(--bg-card);
     overflow-y: auto;
   }
 
@@ -439,8 +437,8 @@
 
   .pricing-card {
     position: relative;
-    background: #14171d;
-    border: 1px solid #2b2e35;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 1.25rem 1.15rem;
     display: flex;
@@ -473,8 +471,8 @@
   }
 
   .tier-ribbon.ribbon-upcoming {
-    background: #2b2e35;
-    color: #9da2ab;
+    background: var(--bg-subtle);
+    color: var(--text-muted);
   }
 
   .card-header {
@@ -484,7 +482,7 @@
   .tier-name {
     font-size: 0.85rem;
     font-weight: 700;
-    color: #f6f6f6;
+    color: var(--text-main);
     display: block;
     margin-bottom: 0.5rem;
   }
@@ -506,7 +504,7 @@
     font-family: var(--font-heading, 'Playfair Display', Georgia, serif);
     font-size: 2.1rem;
     font-weight: 700;
-    color: #f6f6f6;
+    color: var(--text-main);
     line-height: 1;
   }
 
@@ -516,13 +514,13 @@
 
   .period {
     font-size: 0.74rem;
-    color: #9da2ab;
+    color: var(--text-muted);
     margin-left: 2px;
   }
 
   .tier-desc {
     font-size: 0.74rem;
-    color: #9da2ab;
+    color: var(--text-muted);
     line-height: 1.4;
     margin: 0;
     min-height: 34px;
@@ -543,21 +541,21 @@
   }
 
   .current-tier {
-    background: #1a1e27;
-    color: #cbd5e1;
-    border: 1px solid #2b2e35;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
   }
 
   .unlocked-beta {
-    background: #261c0e;
-    color: #f2b84b;
-    border: 1px solid #5a4524;
+    background: var(--status-amber-bg);
+    color: var(--status-amber-text);
+    border: 1px solid var(--status-amber-border);
   }
 
   .coming-soon {
-    background: #161922;
-    color: #7e838f;
-    border: 1px dashed #2b2e35;
+    background: var(--bg-subtle);
+    color: var(--text-muted);
+    border: 1px dashed var(--border-color);
   }
 
   .contact-btn {
@@ -582,7 +580,7 @@
     flex-direction: column;
     gap: 0.65rem;
     font-size: 0.74rem;
-    color: #b4b8c0;
+    color: var(--text-muted);
   }
 
   .feature-list li {
@@ -593,7 +591,7 @@
   }
 
   .feature-list li strong {
-    color: #f6f6f6;
+    color: var(--text-main);
   }
 
   /* Modal Footer */
@@ -602,15 +600,15 @@
     align-items: center;
     justify-content: space-between;
     padding: 0.9rem 2rem;
-    background: #14171d;
-    border-top: 1px solid #2b2e35;
+    background: var(--bg-subtle);
+    border-top: 1px solid var(--border-color);
     gap: 1rem;
     flex-wrap: wrap;
   }
 
   .footer-hint {
     font-size: 0.78rem;
-    color: #9da2ab;
+    color: var(--text-muted);
   }
 
   .contact-link {
