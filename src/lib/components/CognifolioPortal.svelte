@@ -405,7 +405,7 @@
   }
 
   .wrap {
-    width: min(1180px, calc(100% - 40px));
+    width: min(1320px, calc(100% - clamp(36px, 6vw, 96px)));
     margin: auto;
   }
 
@@ -910,6 +910,19 @@
       padding: 25px;
       align-items: flex-start;
       flex-direction: column;
+    }
+  }
+
+  /* 32-inch and Ultra-Wide Monitors */
+  @media (min-width: 1600px) {
+    .wrap {
+      width: min(1520px, calc(100% - 64px));
+    }
+    .hero {
+      padding: 96px 0 88px;
+    }
+    .grid {
+      gap: 64px;
     }
   }
 </style>

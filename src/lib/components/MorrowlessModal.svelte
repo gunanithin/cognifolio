@@ -154,13 +154,15 @@
     position: relative;
     width: 100%;
     max-width: 580px;
+    max-height: min(90vh, 90dvh);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     background: #0a0a0a;
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 20px;
     box-shadow:
       0 30px 80px -15px rgba(0, 0, 0, 0.9),
       0 0 40px rgba(255, 255, 255, 0.03);
-    overflow: hidden;
     color: #ffffff;
     text-align: center;
   }
