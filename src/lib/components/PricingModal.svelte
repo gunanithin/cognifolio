@@ -401,8 +401,8 @@
   .ea-pill {
     font-size: 0.65rem;
     font-weight: 800;
-    background: #1e5a40;
-    color: #67d8a2;
+    background: var(--status-emerald-text, #047857);
+    color: #ffffff;
     padding: 2px 7px;
     border-radius: 4px;
     letter-spacing: 0.05em;
@@ -410,14 +410,14 @@
 
   .ea-text {
     font-size: 0.8rem;
-    color: #67d8a2;
+    color: var(--status-emerald-text, #047857);
     line-height: 1.4;
   }
 
   .ea-tag {
     font-size: 0.8rem;
     font-weight: 700;
-    color: #67d8a2;
+    color: var(--status-emerald-text, #047857);
     font-family: var(--font-mono, monospace);
     white-space: nowrap;
   }
@@ -452,9 +452,27 @@
   }
 
   .pricing-card.highlight-tier {
+    background: linear-gradient(180deg, #fffef9 0%, #fffdf2 100%);
+    border: 2px solid #ca8a04;
+    box-shadow:
+      0 10px 28px -4px rgba(202, 138, 4, 0.18),
+      0 0 0 1px rgba(202, 138, 4, 0.1);
+  }
+
+  .pricing-card.highlight-tier:hover {
+    border-color: #ca8a04;
+    box-shadow: 0 12px 32px -4px rgba(202, 138, 4, 0.25);
+  }
+
+  :global([data-theme='dark']) .pricing-card.highlight-tier {
     background: #1a1812;
+    border: 2px solid #f2b84b;
+    box-shadow: 0 8px 24px rgba(242, 184, 75, 0.2);
+  }
+
+  :global([data-theme='dark']) .pricing-card.highlight-tier:hover {
     border-color: #f2b84b;
-    box-shadow: 0 4px 20px rgba(242, 184, 75, 0.12);
+    box-shadow: 0 10px 28px rgba(242, 184, 75, 0.3);
   }
 
   .tier-ribbon {
@@ -497,7 +515,7 @@
   .currency {
     font-size: 1.1rem;
     font-weight: 700;
-    color: #f2b84b;
+    color: var(--color-gold, #ca8a04);
   }
 
   .amount {
@@ -547,9 +565,15 @@
   }
 
   .unlocked-beta {
-    background: var(--status-amber-bg);
-    color: var(--status-amber-text);
-    border: 1px solid var(--status-amber-border);
+    background: #fef9c3;
+    color: #854d0e;
+    border: 1px solid #fde047;
+  }
+
+  :global([data-theme='dark']) .unlocked-beta {
+    background: rgba(242, 184, 75, 0.15);
+    color: #fde047;
+    border: 1px solid rgba(242, 184, 75, 0.35);
   }
 
   .coming-soon {

@@ -53,4 +53,29 @@ describe('AppHeader Component', () => {
     expect(html).toContain('theme-toggle-btn');
     expect(html).toContain('Switch to Dark Mode');
   });
+
+  it('only exposes Developer Audit Console for authenticated developer or admin roles', () => {
+    // Analyst role should NOT see Developer Audit Console
+    const analystRender = render(AppHeader, {
+      props: {
+        currentUser: {
+          name: 'Regular User',
+          email: 'user@example.com',
+          role: 'analyst',
+          is_guest: false,
+        },
+        activeTab: 'portal',
+      },
+    });
+    expect(analystRender.html).not.toContain('Developer Audit Console');
+
+    // Guest role should NOT see Developer Audit Console
+    const guestRender = render(AppHeader, {
+      props: {
+        currentUser: { name: 'Guest', email: 'guest@example.com', role: 'guest', is_guest: true },
+        activeTab: 'portal',
+      },
+    });
+    expect(guestRender.html).not.toContain('Developer Audit Console');
+  });
 });
