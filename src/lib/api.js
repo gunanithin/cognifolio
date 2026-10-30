@@ -201,6 +201,9 @@ export async function uploadDocument(file, retentionDays = 90) {
 }
 
 export async function listDocuments(filters = {}) {
+  if (!getAuthToken()) {
+    return { items: [], total: 0 };
+  }
   const params = new URLSearchParams();
   if (filters.doc_type) params.append('doc_type', filters.doc_type);
   if (filters.status) params.append('status', filters.status);
@@ -208,10 +211,7 @@ export async function listDocuments(filters = {}) {
   const res = await authFetch(`/documents?${params.toString()}`);
   if (!res.ok) {
     if (res.status === 401) {
-      // Auto-fallback to guest if visited directly without session
-      await startGuestSession();
-      const retryRes = await authFetch(`/documents?${params.toString()}`);
-      if (retryRes.ok) return await retryRes.json();
+      return { items: [], total: 0 };
     }
     throw new Error('Failed to fetch documents');
   }
@@ -267,8 +267,28 @@ export async function semanticSearch(query, options = {}) {
 }
 
 export async function getDashboardStats() {
+  if (!getAuthToken()) {
+    return {
+      total_documents: 0,
+      total_pages: 0,
+      avg_confidence: 0,
+      compliance_score: 100,
+      status_breakdown: {},
+      type_breakdown: {},
+    };
+  }
   const res = await authFetch('/dashboard/stats');
   if (!res.ok) {
+    if (res.status === 401) {
+      return {
+        total_documents: 0,
+        total_pages: 0,
+        avg_confidence: 0,
+        compliance_score: 100,
+        status_breakdown: {},
+        type_breakdown: {},
+      };
+    }
     const errData = await res.json().catch(() => ({}));
     throw new Error(errData.detail || 'Failed to load dashboard metrics');
   }
@@ -276,12 +296,21 @@ export async function getDashboardStats() {
 }
 
 export async function getComplianceStats() {
+  if (!getAuthToken()) {
+    return null;
+  }
   const res = await authFetch('/compliance/stats');
-  if (!res.ok) throw new Error('Failed to load compliance stats');
+  if (!res.ok) {
+    if (res.status === 401) return null;
+    throw new Error('Failed to load compliance stats');
+  }
   return await res.json();
 }
 
 export async function getAuditLogs(params = {}) {
+  if (!getAuthToken()) {
+    return { items: [], total: 0 };
+  }
   const q = new URLSearchParams();
   if (params.action && params.action !== 'all') q.append('action', params.action);
   if (params.search) q.append('search', params.search);
@@ -289,7 +318,10 @@ export async function getAuditLogs(params = {}) {
   if (params.offset) q.append('offset', params.offset);
 
   const res = await authFetch(`/compliance/audit-logs?${q.toString()}`);
-  if (!res.ok) throw new Error('Failed to fetch audit logs');
+  if (!res.ok) {
+    if (res.status === 401) return { items: [], total: 0 };
+    throw new Error('Failed to fetch audit logs');
+  }
   return await res.json();
 }
 

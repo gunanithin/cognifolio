@@ -5,22 +5,9 @@
 
   export let isOpen = false;
 
-  let dontShowOnStartup = false;
-
   const dispatch = createEventDispatcher();
 
   function close() {
-    if (typeof window !== 'undefined' && dontShowOnStartup) {
-      localStorage.setItem('cognifolio_security_guide_dismissed', 'true');
-    }
-    isOpen = false;
-    dispatch('close');
-  }
-
-  function handleUnderstood() {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('cognifolio_security_guide_dismissed', 'true');
-    }
     isOpen = false;
     dispatch('close');
   }
@@ -59,22 +46,12 @@
       aria-modal="true"
       aria-label="Document Protection & Security Policy"
     >
-      <!-- Top Close Button -->
-      <button class="modal-close-btn" on:click={close} aria-label="Close modal">
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
+      <!-- Prominent Top Close Button -->
+      <button class="modal-close-btn" on:click={close} aria-label="Close security guide modal">
+        <CIcon name="close" size={16} />
       </button>
 
-      <!-- Modal Header -->
+      <!-- Pinned Modal Header -->
       <div class="modal-header">
         <div class="header-badge">
           <CIcon name="shield" size={13} />
@@ -88,7 +65,7 @@
         </p>
       </div>
 
-      <!-- Concise 4-Pillar Protection Grid -->
+      <!-- Scrollable Modal Content Body -->
       <div class="modal-body">
         <div class="pillars-grid">
           <!-- Pillar 1 -->
@@ -168,15 +145,9 @@
         </div>
       </div>
 
-      <!-- Modal Footer Action Bar -->
+      <!-- Pinned Modal Footer Action Bar (Always Visible on Mobile) -->
       <div class="modal-footer">
         <div class="footer-left">
-          <label class="startup-dismiss-label">
-            <input type="checkbox" bind:checked={dontShowOnStartup} />
-            <span>Don't show this on startup</span>
-          </label>
-        </div>
-        <div class="footer-right">
           <span class="security-contact-hint">
             Questions?
             <a
@@ -186,8 +157,11 @@
               contact@morrowless.io
             </a>
           </span>
-          <button type="button" class="btn-enter" on:click={handleUnderstood}>
-            Understood &bull; Enter Workspace
+        </div>
+        <div class="footer-right">
+          <button type="button" class="btn-enter" on:click={close}>
+            <CIcon name="check" size={15} />
+            <span>Got It &bull; Close Guide</span>
           </button>
         </div>
       </div>
@@ -200,63 +174,73 @@
     position: fixed;
     inset: 0;
     z-index: 9999;
-    background: rgba(10, 10, 10, 0.72);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    background: rgba(10, 10, 10, 0.78);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 1.25rem;
     cursor: default;
+    overflow-y: auto;
   }
 
   .security-modal-card {
     position: relative;
     width: 100%;
     max-width: 680px;
+    max-height: min(88vh, 88dvh);
     background: #121419;
     border: 1px solid #2b2e35;
-    border-radius: 12px;
+    border-radius: 14px;
     box-shadow:
-      0 20px 50px -10px rgba(0, 0, 0, 0.6),
-      0 0 0 1px rgba(255, 255, 255, 0.05);
+      0 24px 60px -10px rgba(0, 0, 0, 0.8),
+      0 0 0 1px rgba(255, 255, 255, 0.06);
     display: flex;
     flex-direction: column;
     overflow: hidden;
     cursor: default;
     color: #f6f6f6;
     font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+    outline: none;
   }
 
   .modal-close-btn {
     position: absolute;
-    top: 1rem;
-    right: 1rem;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    background: #161922;
-    border: 1px solid #2b2e35;
-    color: #9da2ab;
+    top: 14px;
+    right: 14px;
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+    border-radius: 8px;
+    background: #1a1e27;
+    border: 1px solid #363b47;
+    color: #b4b8c0;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: all 0.15s ease-out;
-    z-index: 10;
+    z-index: 30;
   }
 
-  .modal-close-btn:hover {
-    background: #20242e;
-    color: #f6f6f6;
+  .modal-close-btn:hover,
+  .modal-close-btn:active {
+    background: #272d3b;
+    color: #ffffff;
     border-color: #f2b84b;
+    transform: scale(1.05);
   }
 
   /* Header */
   .modal-header {
     background: #14171d;
     border-bottom: 1px solid #2b2e35;
-    padding: 1.75rem 2rem 1.25rem 2rem;
+    padding: 1.5rem 1.75rem 1.25rem 1.75rem;
+    padding-right: 4rem;
+    flex-shrink: 0;
+    position: relative;
   }
 
   .header-badge {
@@ -289,20 +273,24 @@
     color: #b4b8c0;
     line-height: 1.45;
     margin: 0;
-    max-width: 580px;
+    max-width: 540px;
   }
 
   .header-subtitle strong {
     color: #f6f6f6;
   }
 
-  /* Body */
+  /* Scrollable Body */
   .modal-body {
-    padding: 1.25rem 2rem 1.5rem 2rem;
+    padding: 1.25rem 1.75rem 1.5rem 1.75rem;
     background: #121419;
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+    min-height: 0;
   }
 
   .pillars-grid {
@@ -403,38 +391,26 @@
     background: #2b2e35;
   }
 
-  /* Footer */
+  /* Pinned Footer Action Bar */
   .modal-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.9rem 2rem;
+    padding: 0.9rem 1.75rem;
     background: #14171d;
     border-top: 1px solid #2b2e35;
     gap: 1rem;
-    flex-wrap: wrap;
+    flex-shrink: 0;
   }
 
-  .startup-dismiss-label {
-    display: inline-flex;
+  .footer-left {
+    display: flex;
     align-items: center;
-    gap: 0.45rem;
-    font-size: 0.78rem;
-    color: #9da2ab;
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .startup-dismiss-label input[type='checkbox'] {
-    accent-color: #f2b84b;
-    cursor: pointer;
   }
 
   .footer-right {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
   }
 
   .security-contact-hint {
@@ -452,37 +428,107 @@
   .btn-enter {
     background: #f2b84b;
     color: #08090b;
-    font-size: 0.82rem;
+    font-size: 0.84rem;
     font-weight: 700;
-    padding: 0.5rem 1.1rem;
-    border-radius: 6px;
+    padding: 0.6rem 1.25rem;
+    border-radius: 8px;
     border: 1px solid #f2b84b;
     cursor: pointer;
     transition: all 0.15s ease-out;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 40px;
+    box-shadow: 0 2px 10px rgba(242, 184, 75, 0.2);
   }
 
-  .btn-enter:hover {
+  .btn-enter:hover,
+  .btn-enter:active {
     background: #e5ab3e;
     border-color: #e5ab3e;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(242, 184, 75, 0.35);
   }
 
+  /* Mobile Responsiveness */
   @media (max-width: 640px) {
+    .security-backdrop {
+      padding: 10px;
+      align-items: flex-end;
+    }
+
+    .security-modal-card {
+      max-height: min(92vh, 92dvh);
+      border-radius: 12px;
+    }
+
+    .modal-header {
+      padding: 1.15rem 1rem 0.9rem 1rem;
+      padding-right: 3.5rem;
+    }
+
+    .header-title {
+      font-size: 1.25rem;
+    }
+
+    .header-subtitle {
+      font-size: 0.8rem;
+    }
+
+    .modal-close-btn {
+      top: 10px;
+      right: 10px;
+      width: 36px;
+      height: 36px;
+      min-width: 36px;
+      min-height: 36px;
+    }
+
+    .modal-body {
+      padding: 0.9rem 1rem;
+    }
+
     .pillars-grid {
       grid-template-columns: 1fr;
+      gap: 0.65rem;
     }
+
+    .pillar-card {
+      padding: 0.85rem;
+    }
+
     .specs-bar {
       flex-direction: column;
       align-items: flex-start;
       gap: 0.35rem;
+      padding: 0.65rem 0.85rem;
     }
+
     .spec-divider {
       display: none;
     }
-    .modal-header,
-    .modal-body,
+
     .modal-footer {
-      padding-left: 1.25rem;
-      padding-right: 1.25rem;
+      flex-direction: column-reverse;
+      align-items: stretch;
+      padding: 0.85rem 1rem;
+      gap: 0.65rem;
+    }
+
+    .footer-left {
+      justify-content: center;
+      text-align: center;
+    }
+
+    .footer-right {
+      width: 100%;
+    }
+
+    .btn-enter {
+      width: 100%;
+      min-height: 44px;
+      font-size: 0.88rem;
     }
   }
 </style>

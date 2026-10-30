@@ -225,12 +225,10 @@
     logout();
     currentUser = null;
     selectedDoc = null;
-    try {
-      const g = await startGuestSession();
-      currentUser = g.user;
-    } catch {}
+    documents = [];
+    stats = null;
     await refreshAll();
-    showSuccess('Signed out. Switched to an isolated guest session.', 3500);
+    showSuccess('Signed out successfully.', 3500);
   }
 
   $: totalPages = documents.reduce((acc, d) => acc + (d.page_count || 1), 0);
@@ -347,29 +345,18 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
 
   onMount(async () => {
     cleanupRouter = router.init();
-    progress.start('Initializing document workspace...');
-    try {
-      currentUser = getCurrentUser();
-      if (!getAuthToken()) {
-        try {
-          const guestData = await startGuestSession();
-          currentUser = guestData.user;
-        } catch (err) {
-          console.warn('Could not auto-start guest session:', err);
-        }
-      }
-      await refreshAll(true);
-    } finally {
-      progress.done();
-    }
+    currentUser = getCurrentUser();
 
-    if (typeof window !== 'undefined') {
-      const hasDismissed = localStorage.getItem('cognifolio_security_guide_dismissed');
-      if (!hasDismissed) {
-        setTimeout(() => {
-          isSecurityGuideOpen = true;
-        }, 350);
-      }
+    // If already authenticated with existing session token, load workspace data in background
+    if (getAuthToken()) {
+      refreshAll(true).catch(() => {});
+    } else {
+      // Lightly probe backend health in background without blocking screen or forcing guest login
+      fetchHealth()
+        .then((h) => {
+          health = h;
+        })
+        .catch(() => {});
     }
   });
 
@@ -437,6 +424,18 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
       showError('File size exceeds maximum limit of 50MB. Please select a document under 50MB.');
       return;
     }
+
+    // Initiate guest session on-demand only when unauthenticated user uploads a document
+    if (!getAuthToken()) {
+      try {
+        const guestData = await startGuestSession();
+        currentUser = guestData.user;
+      } catch (err) {
+        showError('Could not initialize secure session for upload. Please sign in.');
+        return;
+      }
+    }
+
     isUploading = true;
     uploadStep = 1;
     errorMsg = '';
@@ -1165,14 +1164,14 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
   }
 
   .workspace-navigation-ribbon {
-    width: min(1380px, calc(100% - 40px));
+    width: min(1320px, calc(100% - clamp(36px, 6vw, 96px)));
     margin: 16px auto 0;
   }
 
   .content-container {
-    width: min(1380px, calc(100% - 40px));
+    width: min(1320px, calc(100% - clamp(36px, 6vw, 96px)));
     margin: 0 auto;
-    padding: 24px 0 40px;
+    padding: 24px 0 calc(70px + env(safe-area-inset-bottom, 0px));
     flex: 1;
   }
 
@@ -1180,7 +1179,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     width: 100%;
     max-width: 100%;
     margin: 0;
-    padding: 0 0 40px;
+    padding: 0 0 calc(70px + env(safe-area-inset-bottom, 0px));
   }
 
   /* Luxury Floating Editorial Notification Toasts */
@@ -1370,14 +1369,26 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     }
   }
 
-  @media (max-width: 600px) {
+  @media (max-width: 768px) {
     .workspace-navigation-ribbon,
     .content-container {
       width: calc(100% - 24px);
     }
+    .content-container,
+    .content-container.portal-mode {
+      padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
+    }
     .notification-toast-anchor {
       width: calc(100% - 24px);
-      top: 76px;
+      top: 72px;
+    }
+  }
+
+  /* 32-inch and Ultra-Wide Monitors */
+  @media (min-width: 1600px) {
+    .workspace-navigation-ribbon,
+    .content-container {
+      width: min(1520px, calc(100% - 64px));
     }
   }
 </style>

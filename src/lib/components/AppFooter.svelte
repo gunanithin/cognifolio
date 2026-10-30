@@ -23,8 +23,10 @@
 <footer class="app-unified-footer">
   <div class="footer-inner">
     <div class="footer-left">
-      <img src="/app-icon.png" alt="Cognifolio" class="footer-logo-img" />
-      <span class="footer-brand">Cognifolio</span>
+      <div class="footer-brand-lockup">
+        <img src="/app-icon.png" alt="Cognifolio" class="footer-logo-img" />
+        <span class="footer-brand">Cognifolio</span>
+      </div>
       <span class="footer-dot">•</span>
       <button
         type="button"
@@ -77,29 +79,43 @@
     z-index: 90;
     border-top: 1px solid #25282e;
     background: rgba(8, 9, 11, 0.96);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    padding: 9px 24px calc(9px + env(safe-area-inset-bottom, 0px)) 24px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    padding: 10px 24px calc(10px + env(safe-area-inset-bottom, 0px)) 24px;
     font-size: 0.78rem;
     color: #71717a;
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.02);
+    box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.45);
+    width: 100%;
   }
 
   .footer-inner {
-    max-width: 1400px;
+    width: min(1320px, calc(100% - clamp(36px, 6vw, 96px)));
     margin: 0 auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
+    flex-wrap: wrap;
   }
 
-  .footer-left,
+  .footer-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .footer-brand-lockup {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   .footer-right {
     display: flex;
     align-items: center;
     gap: 10px;
-    white-space: nowrap;
+    flex-wrap: wrap;
   }
 
   .footer-logo-img {
@@ -116,10 +132,12 @@
     font-weight: 600;
     font-size: 0.92rem;
     color: #f6f6f6;
+    letter-spacing: -0.01em;
   }
 
   .footer-dot {
     color: #3b3f49;
+    user-select: none;
   }
 
   .footer-org-link {
@@ -130,6 +148,7 @@
     color: #9da2ab;
     cursor: pointer;
     transition: color 0.15s ease;
+    text-align: left;
   }
 
   .footer-org-link strong {
@@ -174,13 +193,16 @@
   .footer-license-btn {
     background: #14171d;
     border: 1px solid #2b2e35;
-    padding: 3px 8px;
+    padding: 3px 9px;
     border-radius: 4px;
     font-size: 0.72rem;
     font-weight: 500;
     color: #8a8f98;
     cursor: pointer;
     transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
   }
 
   .footer-license-btn:hover {
@@ -189,12 +211,101 @@
     border-color: #3b3f49;
   }
 
+  /* Responsive Multi-Screen Rules */
+
+  /* Tablets and Smaller Laptops (769px to 1024px) */
+  @media (max-width: 1024px) {
+    .footer-inner {
+      width: calc(100% - 32px);
+      gap: 12px;
+    }
+  }
+
+  /* Tablets & Phablets (max 768px) */
   @media (max-width: 768px) {
     .app-unified-footer {
-      padding: 8px 16px;
+      padding: 9px 16px calc(9px + env(safe-area-inset-bottom, 0px)) 16px;
     }
+
     .footer-inner {
-      justify-content: space-between;
+      width: 100%;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-align: center;
+    }
+
+    .footer-left,
+    .footer-right {
+      justify-content: center;
+      gap: 8px;
+      font-size: 0.75rem;
+    }
+
+    .footer-license-btn {
+      padding: 4px 10px;
+      min-height: 28px;
+    }
+  }
+
+  /* Compact Mobile Phones (max 480px) */
+  @media (max-width: 480px) {
+    .app-unified-footer {
+      padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px)) 12px;
+    }
+
+    .footer-inner {
+      gap: 6px;
+    }
+
+    .footer-left {
+      gap: 6px;
+      font-size: 0.72rem;
+    }
+
+    .footer-org-link {
+      font-size: 0.72rem;
+    }
+
+    /* Hide middle dot separators on narrow mobile to prevent line-wrapping artifacts */
+    .footer-dot {
+      display: none;
+    }
+
+    .footer-right {
+      gap: 6px 10px;
+      font-size: 0.72rem;
+    }
+
+    .footer-contact-group {
+      font-size: 0.72rem;
+    }
+
+    .footer-license-btn {
+      padding: 4px 8px;
+      font-size: 0.7rem;
+    }
+  }
+
+  /* 32-inch and Ultra-Wide Screens (min 1600px) */
+  @media (min-width: 1600px) {
+    .app-unified-footer {
+      padding: 12px 32px calc(12px + env(safe-area-inset-bottom, 0px)) 32px;
+    }
+
+    .footer-inner {
+      width: min(1520px, calc(100% - 64px));
+    }
+
+    .footer-brand {
+      font-size: 0.96rem;
+    }
+
+    .footer-org-link,
+    .footer-contact-link,
+    .footer-license-btn {
+      font-size: 0.8rem;
     }
   }
 </style>

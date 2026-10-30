@@ -42,7 +42,7 @@
   >
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div
-      class="relative w-full {maxWidth} rounded-[8px] border border-border-strong bg-surface p-7 md:p-8 shadow-paper-elevated text-ink transition-transform duration-200 {className}"
+      class="relative w-full {maxWidth} max-h-[90vh] max-h-[90dvh] overflow-y-auto rounded-[8px] border border-border-strong bg-surface p-6 sm:p-7 md:p-8 shadow-paper-elevated text-ink transition-transform duration-200 {className}"
       on:click|stopPropagation
       on:keydown|stopPropagation
       role="dialog"

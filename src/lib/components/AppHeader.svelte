@@ -92,13 +92,19 @@
 
     <!-- Right Actions -->
     <div class="nav-actions">
+      {#if !currentUser}
+        <button type="button" class="header-signin-btn" on:click={() => openAuth('signin')}>
+          Sign In
+        </button>
+      {/if}
+
       <!-- User Avatar Chip & Session Menu -->
       <div class="user-menu-wrapper">
         <button
           type="button"
           class="user-avatar-chip"
           on:click={() => (isUserMenuOpen = !isUserMenuOpen)}
-          title={currentUser ? currentUser.email : 'Guest Session Active'}
+          title={currentUser ? currentUser.email : 'Account & Navigation Menu'}
         >
           {#if currentUser && currentUser.avatar_url}
             <img src={currentUser.avatar_url} alt={currentUser.name} class="avatar-img" />
@@ -114,13 +120,68 @@
           <div class="user-dropdown-menu">
             <div class="menu-header">
               <span class="menu-user-name">
-                {currentUser ? currentUser.name || currentUser.email : 'Guest Analyst'}
+                {currentUser ? currentUser.name || currentUser.email : 'Cognifolio Guest'}
               </span>
               <span class="menu-user-role">
-                {currentUser?.is_guest ? '⚡ Guest Session' : 'Free Public Beta'}
+                {currentUser?.is_guest
+                  ? '⚡ Guest Session'
+                  : currentUser
+                    ? 'Free Public Beta'
+                    : 'Not Signed In'}
               </span>
             </div>
             <div class="menu-divider"></div>
+
+            <!-- Mobile-only navigation items -->
+            <div class="mobile-nav-group">
+              <button
+                class="menu-item-btn"
+                on:click={() => {
+                  isUserMenuOpen = false;
+                  handleNavClick('product');
+                }}
+              >
+                Product
+              </button>
+              <button
+                class="menu-item-btn"
+                on:click={() => {
+                  isUserMenuOpen = false;
+                  handleNavClick('features');
+                }}
+              >
+                Features
+              </button>
+              <button
+                class="menu-item-btn"
+                on:click={() => {
+                  isUserMenuOpen = false;
+                  handleNavClick('workflow');
+                }}
+              >
+                How it works
+              </button>
+              <button
+                class="menu-item-btn highlight-btn"
+                on:click={() => {
+                  isUserMenuOpen = false;
+                  handleLaunchStudio();
+                }}
+              >
+                Workspace Studio ↗
+              </button>
+              <button
+                class="menu-item-btn"
+                on:click={() => {
+                  isUserMenuOpen = false;
+                  openPricing();
+                }}
+              >
+                Pricing (Free)
+              </button>
+              <div class="menu-divider"></div>
+            </div>
+
             {#if currentUser && !currentUser.is_guest}
               <button class="menu-item-btn" on:click={handleLogout}>Sign Out</button>
             {:else}
@@ -156,13 +217,13 @@
   }
 
   .header-inner {
-    width: min(1180px, calc(100% - 40px));
+    width: min(1320px, calc(100% - clamp(36px, 6vw, 96px)));
     margin: 0 auto;
     height: 74px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 24px;
+    gap: 20px;
   }
 
   /* Brand */
@@ -388,9 +449,58 @@
     font-weight: 600;
   }
 
+  .header-signin-btn {
+    background: transparent;
+    border: 1px solid #3b3f49;
+    color: #f6f6f6;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .header-signin-btn:hover {
+    border-color: #f2b84b;
+    color: #f2b84b;
+    background: rgba(242, 184, 75, 0.08);
+  }
+
+  .mobile-nav-group {
+    display: none;
+    flex-direction: column;
+    gap: 3px;
+  }
+
   @media (max-width: 820px) {
+    .header-inner {
+      width: calc(100% - 24px);
+      height: 64px;
+    }
+
     .nav-links {
       display: none;
+    }
+
+    .mobile-nav-group {
+      display: flex;
+    }
+  }
+
+  @media (min-width: 1600px) {
+    .header-inner {
+      width: min(1520px, calc(100% - 64px));
+      height: 80px;
+    }
+
+    .brand-name {
+      font-size: 20px;
+    }
+
+    .nav-links a,
+    .nav-text-btn {
+      font-size: 14px;
     }
   }
 </style>

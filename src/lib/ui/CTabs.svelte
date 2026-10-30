@@ -57,17 +57,33 @@
     display: flex;
     align-items: center;
     gap: 24px;
-    max-width: 1400px;
+    width: min(1320px, calc(100% - clamp(36px, 6vw, 96px)));
     margin: 0 auto;
-    padding: 0 32px;
+    padding: 0;
     overflow-x: auto;
     scrollbar-width: none; /* Firefox */
     -ms-overflow-style: none; /* IE & Edge */
+    -webkit-overflow-scrolling: touch;
   }
   .c-tabs-container::-webkit-scrollbar {
     display: none; /* Chrome, Safari, Opera */
     width: 0;
     height: 0;
+  }
+  @media (max-width: 768px) {
+    .c-tabs-container {
+      gap: 16px;
+      padding: 0 16px;
+    }
+    .c-tab-btn {
+      padding: 10px 2px;
+      font-size: 0.74rem;
+    }
+  }
+  @media (min-width: 1600px) {
+    .c-tabs-container {
+      width: min(1480px, calc(100% - 96px));
+    }
   }
   .c-tab-btn {
     display: inline-flex;
