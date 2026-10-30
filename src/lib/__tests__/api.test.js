@@ -6,6 +6,9 @@ import {
   setAuthSession,
   clearAuthSession,
   uploadDocument,
+  fetchDeveloperTelemetryLogs,
+  fetchDeveloperTelemetryStats,
+  fetchTelemetryLogDetail,
 } from '../api.js';
 
 let storage = {};
@@ -213,6 +216,84 @@ describe('Auth & Session Management API', () => {
       expect(uploadAttempts).toBe(2);
       expect(getAuthToken()).toBe(refreshedToken);
       expect(getCurrentUser()?.id).toBe('guest-new');
+    });
+  });
+
+  describe('Developer Telemetry Endpoints', () => {
+    it('fetchDeveloperTelemetryLogs injects developer token and filters into query', async () => {
+      global.fetch = vi.fn().mockImplementation((url, opts) => {
+        if (url.includes('/telemetry/errors')) {
+          expect(url).toContain('user_type=guest');
+          expect(url).toContain('severity=CRITICAL');
+          expect(opts.headers.get('Authorization')).toBe('Bearer dev-jwt-token');
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () =>
+              Promise.resolve({
+                total: 1,
+                page: 1,
+                limit: 25,
+                items: [{ correlation_id: 'ERR-DEMO-TEST1', severity: 'CRITICAL' }],
+              }),
+          });
+        }
+        return Promise.reject(new Error(`Unhandled URL: ${url}`));
+      });
+
+      const res = await fetchDeveloperTelemetryLogs(
+        { user_type: 'guest', severity: 'CRITICAL' },
+        'dev-jwt-token',
+      );
+      expect(res.total).toBe(1);
+      expect(res.items[0].correlation_id).toBe('ERR-DEMO-TEST1');
+    });
+
+    it('fetchDeveloperTelemetryStats returns operational KPIs', async () => {
+      global.fetch = vi.fn().mockImplementation((url, opts) => {
+        if (url.includes('/telemetry/stats')) {
+          expect(opts.headers.get('Authorization')).toBe('Bearer dev-jwt-token');
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () =>
+              Promise.resolve({
+                total_errors: 12,
+                critical_count: 2,
+                error_count: 8,
+                warning_count: 2,
+                by_user_type: { guest: 7, authenticated: 5 },
+                by_subsystem: { ingestion: 4, ai_analysis: 8 },
+              }),
+          });
+        }
+        return Promise.reject(new Error(`Unhandled URL: ${url}`));
+      });
+
+      const res = await fetchDeveloperTelemetryStats('dev-jwt-token');
+      expect(res.total_errors).toBe(12);
+      expect(res.by_user_type.guest).toBe(7);
+    });
+
+    it('fetchTelemetryLogDetail queries single log by correlation ID', async () => {
+      global.fetch = vi.fn().mockImplementation((url, opts) => {
+        if (url.includes('/telemetry/errors/ERR-9999-AAAA')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () =>
+              Promise.resolve({
+                correlation_id: 'ERR-9999-AAAA',
+                stack_trace: 'Traceback (most recent call last)...',
+              }),
+          });
+        }
+        return Promise.reject(new Error(`Unhandled URL: ${url}`));
+      });
+
+      const res = await fetchTelemetryLogDetail('ERR-9999-AAAA', 'dev-jwt-token');
+      expect(res.correlation_id).toBe('ERR-9999-AAAA');
+      expect(res.stack_trace).toContain('Traceback');
     });
   });
 });

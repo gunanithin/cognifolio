@@ -66,6 +66,15 @@
       >
         Security &amp; Protection Policy
       </button>
+      <span class="footer-dot">•</span>
+      <button
+        type="button"
+        class="footer-license-btn"
+        on:click={() => dispatch('openDeveloperAudit')}
+        title="Developer Observability & Telemetry Audit Console"
+      >
+        Developer Audit
+      </button>
     </div>
   </div>
 </footer>

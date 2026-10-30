@@ -30,6 +30,7 @@
   import CIcon from './lib/icons/CIcon.svelte';
   import { progress } from './lib/stores/progress.js';
   import { theme } from './lib/stores/theme.js';
+  import { telemetry } from './lib/stores/telemetry.js';
 
   import AppHeader from './lib/components/AppHeader.svelte';
   import AppFooter from './lib/components/AppFooter.svelte';
@@ -47,6 +48,7 @@
   import SecurityGuideModal from './lib/components/SecurityGuideModal.svelte';
   import PricingModal from './lib/components/PricingModal.svelte';
   import TermsModal from './lib/components/TermsModal.svelte';
+  import DeveloperAuditModal from './lib/components/DeveloperAuditModal.svelte';
 
   // Dynamic Lazy-Loaded PDF Viewer Component
   let PdfViewerComponent = null;
@@ -169,6 +171,8 @@
   let isSecurityGuideOpen = false;
   let isPricingModalOpen = false;
   let isTermsModalOpen = false;
+  let isDeveloperAuditOpen = false;
+  let developerPrefillCorrelationId = '';
   let authModalMode = 'signin';
   let currentUser = getCurrentUser();
 
@@ -191,6 +195,7 @@
   function showSuccess(msg, duration = 4500) {
     if (successTimer) clearTimeout(successTimer);
     successMsg = msg;
+    telemetry.showSuccess(msg, duration);
     if (duration > 0 && typeof window !== 'undefined') {
       successTimer = setTimeout(() => {
         successMsg = '';
@@ -199,9 +204,12 @@
     }
   }
 
-  function showError(msg, duration = 6500) {
+  function showError(msgOrErr, duration = 8500, context = {}) {
     if (errorTimer) clearTimeout(errorTimer);
-    errorMsg = msg;
+    const text =
+      typeof msgOrErr === 'string' ? msgOrErr : msgOrErr?.message || 'Attention required';
+    errorMsg = text;
+    telemetry.captureError(msgOrErr, { duration, ...context });
     if (duration > 0 && typeof window !== 'undefined') {
       errorTimer = setTimeout(() => {
         errorMsg = '';
@@ -337,17 +345,53 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
   ];
 
   let cleanupRouter = null;
+  let removeGlobalErrorListeners = null;
 
   onDestroy(() => {
     if (cleanupRouter) cleanupRouter();
     if (successTimer) clearTimeout(successTimer);
     if (errorTimer) clearTimeout(errorTimer);
+    if (removeGlobalErrorListeners) removeGlobalErrorListeners();
   });
 
   onMount(async () => {
     theme.init();
     cleanupRouter = router.init();
     currentUser = getCurrentUser();
+
+    // Global Observability & Telemetry Listeners
+    if (typeof window !== 'undefined') {
+      const handleGlobalError = (event) => {
+        telemetry.captureError(event.error || event.message, {
+          subsystem: 'client_runtime',
+          title: 'Runtime Anomaly',
+          userMessage:
+            'A browser script encountered an unexpected condition. Your document state is preserved.',
+        });
+      };
+      const handleUnhandledRejection = (event) => {
+        telemetry.captureError(event.reason || 'Unhandled Promise Rejection', {
+          subsystem: 'client_runtime',
+          title: 'Asynchronous Process Notice',
+          userMessage:
+            'A background task encountered an unexpected condition. Your document state is preserved.',
+        });
+      };
+      const handleGlobalKeydown = (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.shiftKey && (event.key === 'D' || event.key === 'd')) {
+          event.preventDefault();
+          isDeveloperAuditOpen = !isDeveloperAuditOpen;
+        }
+      };
+      window.addEventListener('error', handleGlobalError);
+      window.addEventListener('unhandledrejection', handleUnhandledRejection);
+      window.addEventListener('keydown', handleGlobalKeydown);
+      removeGlobalErrorListeners = () => {
+        window.removeEventListener('error', handleGlobalError);
+        window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+        window.removeEventListener('keydown', handleGlobalKeydown);
+      };
+    }
 
     // If already authenticated with existing session token, load workspace data in background
     if (getAuthToken()) {
@@ -918,6 +962,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     on:openSecurityGuide={() => (isSecurityGuideOpen = true)}
     on:openPricing={() => (isPricingModalOpen = true)}
     on:openMorrowless={() => (isMorrowlessModalOpen = true)}
+    on:openDeveloperAudit={() => (isDeveloperAuditOpen = true)}
     on:openAuthModal={(e) => openAuthModal(e.detail?.mode || 'signin')}
     on:logout={handleLogout}
   />
@@ -930,9 +975,10 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
   {/if}
 
   <!-- Notifications & Global Alerts (Luxury Floating Editorial Toast) -->
-  {#if errorMsg || successMsg}
+  {#if $telemetry || errorMsg || successMsg}
     <div class="notification-toast-anchor" aria-live="polite">
-      {#if successMsg}
+      {#if ($telemetry && $telemetry.type === 'success') || (!$telemetry && successMsg)}
+        {@const msg = $telemetry?.message || successMsg}
         <div class="cognifolio-toast toast-success" transition:fade={{ duration: 150 }}>
           <div class="toast-indicator success-indicator">
             <CIcon name="check" size={15} />
@@ -940,14 +986,15 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
           <div class="toast-body">
             <div class="toast-kicker">
               <span class="toast-kicker-dot success-dot"></span>
-              <span>WORKSPACE NOTICE</span>
+              <span>{$telemetry?.title || 'WORKSPACE NOTICE'}</span>
             </div>
-            <p class="toast-text">{successMsg}</p>
+            <p class="toast-text">{msg}</p>
           </div>
           <button
             type="button"
             class="toast-close-btn"
             on:click={() => {
+              telemetry.dismiss();
               successMsg = '';
               if (successTimer) clearTimeout(successTimer);
             }}
@@ -961,22 +1008,76 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
         </div>
       {/if}
 
-      {#if errorMsg}
+      {#if ($telemetry && $telemetry.type === 'error') || (!$telemetry && errorMsg)}
+        {@const errItem = $telemetry || { title: 'ATTENTION REQUIRED', message: errorMsg }}
         <div class="cognifolio-toast toast-error" transition:fade={{ duration: 150 }}>
           <div class="toast-indicator error-indicator">
-            <CIcon name="warning" size={15} />
+            <CIcon name="warning" size={16} />
           </div>
           <div class="toast-body">
             <div class="toast-kicker error-kicker">
               <span class="toast-kicker-dot error-dot"></span>
-              <span>ATTENTION REQUIRED</span>
+              <span>{errItem.title || 'ATTENTION REQUIRED'}</span>
             </div>
-            <p class="toast-text">{errorMsg}</p>
+
+            <!-- Plain-English Empathetic User Explanation -->
+            <p class="toast-text">{errItem.message}</p>
+
+            <!-- Correlation Reference ID Pill with 1-click Copy -->
+            {#if errItem.id}
+              <div class="toast-meta-row">
+                <span class="toast-ref-pill font-mono">
+                  Ref ID: <strong>{errItem.id}</strong>
+                </span>
+                <button
+                  type="button"
+                  class="toast-action-link"
+                  on:click={() => {
+                    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                      navigator.clipboard.writeText(errItem.id);
+                      showSuccess(`Reference ID ${errItem.id} copied to clipboard.`);
+                    }
+                  }}
+                  title="Copy Reference ID for Developer Support"
+                >
+                  <CIcon name="copy" size={11} />
+                  <span>Copy Ref ID</span>
+                </button>
+              </div>
+            {/if}
+
+            {#if errItem.actionLabel && errItem.actionLabel !== 'Dismiss'}
+              <div class="toast-buttons-row">
+                <button
+                  type="button"
+                  class="toast-primary-btn"
+                  on:click={() => {
+                    if (errItem.actionHandler) errItem.actionHandler();
+                    telemetry.dismiss();
+                    errorMsg = '';
+                  }}
+                >
+                  {errItem.actionLabel}
+                </button>
+                <button
+                  type="button"
+                  class="toast-secondary-btn"
+                  on:click={() => {
+                    telemetry.dismiss();
+                    errorMsg = '';
+                  }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            {/if}
           </div>
+
           <button
             type="button"
             class="toast-close-btn"
             on:click={() => {
+              telemetry.dismiss();
               errorMsg = '';
               if (errorTimer) clearTimeout(errorTimer);
             }}
@@ -1130,6 +1231,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     on:openPricing={() => (isPricingModalOpen = true)}
     on:openSecurityGuide={() => (isSecurityGuideOpen = true)}
     on:openMorrowless={() => (isMorrowlessModalOpen = true)}
+    on:openDeveloperAudit={() => (isDeveloperAuditOpen = true)}
   />
 
   <!-- Global Modals (Mounted once at the SPA root) -->
@@ -1137,6 +1239,10 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
   <TermsModal bind:isOpen={isTermsModalOpen} />
   <MorrowlessModal bind:isOpen={isMorrowlessModalOpen} />
   <SecurityGuideModal bind:isOpen={isSecurityGuideOpen} />
+  <DeveloperAuditModal
+    bind:isOpen={isDeveloperAuditOpen}
+    prefillCorrelationId={developerPrefillCorrelationId}
+  />
 
   <DeleteConfirmModal
     isOpen={isDeleteModalOpen}
@@ -1301,6 +1407,79 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     color: var(--text-main);
     font-weight: 450;
     word-break: break-word;
+  }
+
+  .toast-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+  }
+
+  .toast-ref-pill {
+    font-size: 0.7rem;
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--border-color);
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: var(--text-main);
+  }
+
+  .toast-action-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #ca8a04;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .toast-action-link:hover {
+    color: #a16207;
+  }
+
+  .toast-buttons-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .toast-primary-btn {
+    background: var(--text-main);
+    color: var(--bg-surface);
+    border: 1px solid var(--text-main);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+  }
+
+  .toast-primary-btn:hover {
+    opacity: 0.9;
+  }
+
+  .toast-secondary-btn {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 4px 8px;
+    cursor: pointer;
+  }
+
+  .toast-secondary-btn:hover {
+    color: var(--text-main);
+    border-color: var(--text-muted);
   }
 
   .toast-close-btn {

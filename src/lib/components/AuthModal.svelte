@@ -1,6 +1,8 @@
 <script>
   import { createEventDispatcher, onMount } from 'svelte';
   import { loginUser, registerUser, startGuestSession, loginWithGoogle } from '../api.js';
+  import { evaluatePasswordStrength, validateEmail } from '../crypto/authCrypto.js';
+  import { telemetry } from '../stores/telemetry.js';
   import CModal from '../ui/CModal.svelte';
   import CTextBox from '../ui/CTextBox.svelte';
   import CButton from '../ui/CButton.svelte';
@@ -18,6 +20,19 @@
   let password = '';
   let isLoading = false;
   let errorMsg = '';
+  let activeAuthError = null;
+  let copiedCorrelationId = false;
+  let isEmailTouched = false;
+
+  $: strength = evaluatePasswordStrength(password);
+  $: emailValidation = validateEmail(email);
+  $: emailError =
+    email.length > 0 &&
+    (isEmailTouched || email.includes('@') || email.length > 5) &&
+    !emailValidation.valid
+      ? emailValidation.error
+      : '';
+  $: isEmailValid = email.trim().length > 0 && emailValidation.valid;
 
   onMount(() => {
     if (typeof window !== 'undefined' && !window.google?.accounts?.id) {
@@ -36,32 +51,67 @@
     mode = initialMode;
   }
 
+  function copyCorrelationId(id) {
+    if (typeof navigator !== 'undefined' && navigator?.clipboard && id) {
+      navigator.clipboard.writeText(id).then(() => {
+        copiedCorrelationId = true;
+        setTimeout(() => (copiedCorrelationId = false), 2000);
+      });
+    }
+  }
+
   function closeModal() {
     errorMsg = '';
+    activeAuthError = null;
     isOpen = false;
     dispatch('close');
   }
 
   async function handleSubmit() {
     errorMsg = '';
+    activeAuthError = null;
+    isEmailTouched = true;
     isLoading = true;
 
     try {
       let data;
+      const cleanEmail = email.trim().toLowerCase();
+      const emailCheck = validateEmail(cleanEmail);
+      if (!emailCheck.valid) {
+        throw new Error(emailCheck.error);
+      }
+
       if (mode === 'signup') {
         if (!name.trim()) throw new Error('Please enter your full name');
-        if (!email.trim()) throw new Error('Please enter your email');
-        if (password.length < 6) throw new Error('Password must be at least 6 characters');
-        data = await registerUser(name, email, password);
+        if (password.length < 8) throw new Error('Password must be at least 8 characters');
+        if (!strength.meetsPolicy) {
+          throw new Error(
+            strength.feedback ||
+              'Please choose a stronger passphrase (min 10 characters with mixed cases/numbers).',
+          );
+        }
+        data = await registerUser(name, cleanEmail, password);
       } else {
-        if (!email.trim() || !password) throw new Error('Please enter your email and password');
-        data = await loginUser(email, password);
+        if (!password) throw new Error('Please enter your password');
+        data = await loginUser(cleanEmail, password);
       }
 
       dispatch('success', { user: data.user, token: data.access_token });
       closeModal();
     } catch (err) {
-      errorMsg = err.message;
+      const record = telemetry.captureError(err, {
+        subsystem: 'auth',
+        endpoint: mode === 'signup' ? '/auth/secure-register' : '/auth/secure-login',
+        method: 'POST',
+        status_code: err.status || 400,
+        correlation_id: err.correlation_id,
+        metadata: {
+          email: email ? `${email.split('@')[0]}@***` : 'empty',
+          mode,
+        },
+      });
+      activeAuthError = record;
+      errorMsg = record.userMessage;
     } finally {
       isLoading = false;
     }
@@ -69,13 +119,21 @@
 
   async function handleGuestLogin() {
     errorMsg = '';
+    activeAuthError = null;
     isLoading = true;
     try {
       const data = await startGuestSession();
       dispatch('success', { user: data.user, token: data.access_token, isGuest: true });
       closeModal();
     } catch (err) {
-      errorMsg = err.message;
+      const record = telemetry.captureError(err, {
+        subsystem: 'auth',
+        endpoint: '/auth/guest',
+        method: 'POST',
+        status_code: err.status || 500,
+      });
+      activeAuthError = record;
+      errorMsg = record.userMessage;
     } finally {
       isLoading = false;
     }
@@ -86,6 +144,8 @@
       window.google.accounts.id.prompt();
     } else {
       isLoading = true;
+      activeAuthError = null;
+      errorMsg = '';
       const mockEmail = `user.${Math.random().toString(36).substring(7)}@gmail.com`;
       loginWithGoogle(
         'demo_google_id_token',
@@ -98,7 +158,14 @@
           closeModal();
         })
         .catch((err) => {
-          errorMsg = err.message;
+          const record = telemetry.captureError(err, {
+            subsystem: 'auth',
+            endpoint: '/auth/google',
+            method: 'POST',
+            status_code: err.status || 500,
+          });
+          activeAuthError = record;
+          errorMsg = record.userMessage;
         })
         .finally(() => {
           isLoading = false;
@@ -127,34 +194,89 @@
   </div>
 
   <!-- Mode Switcher Tabs -->
-  <div class="mb-5 grid grid-cols-2 rounded-[6px] border border-border-hairline bg-surface-subtle p-1">
+  <div
+    class="mb-5 grid grid-cols-2 rounded-[6px] border border-border-hairline bg-surface-subtle p-1"
+  >
     <button
       type="button"
-      class="rounded-[4px] py-1.5 text-xs font-semibold uppercase tracking-wider transition-all {mode === 'signin'
+      class="rounded-[4px] py-1.5 text-xs font-semibold uppercase tracking-wider transition-all {mode ===
+      'signin'
         ? 'bg-surface text-ink border border-ink shadow-sm'
         : 'text-ink-muted hover:text-ink'}"
       on:click={() => {
         mode = 'signin';
         errorMsg = '';
+        activeAuthError = null;
       }}
     >
       Sign In
     </button>
     <button
       type="button"
-      class="rounded-[4px] py-1.5 text-xs font-semibold uppercase tracking-wider transition-all {mode === 'signup'
+      class="rounded-[4px] py-1.5 text-xs font-semibold uppercase tracking-wider transition-all {mode ===
+      'signup'
         ? 'bg-surface text-ink border border-ink shadow-sm'
         : 'text-ink-muted hover:text-ink'}"
       on:click={() => {
         mode = 'signup';
         errorMsg = '';
+        activeAuthError = null;
       }}
     >
       Create Account
     </button>
   </div>
 
-  {#if errorMsg}
+  {#if activeAuthError}
+    <div
+      class="mb-4 rounded-[6px] border border-status-danger-border bg-status-danger-bg/80 p-3.5 text-xs text-status-danger-text shadow-sm"
+    >
+      <div class="flex items-start gap-2.5">
+        <div class="mt-0.5 shrink-0 text-status-danger-text">
+          <CIcon name="close" size={16} />
+        </div>
+        <div class="flex-1">
+          <div class="flex items-center justify-between gap-2">
+            <h4 class="font-serif font-bold text-sm text-ink">
+              {activeAuthError.title || 'Authentication Notice'}
+            </h4>
+            {#if activeAuthError.correlationId}
+              <button
+                type="button"
+                title="Click to copy incident reference"
+                class="font-mono text-[10px] text-ink-muted bg-surface/90 border border-border-hairline rounded px-1.5 py-0.5 tracking-wider hover:border-ink hover:text-ink transition-colors flex items-center gap-1"
+                on:click={() => copyCorrelationId(activeAuthError.correlationId)}
+              >
+                <span>{activeAuthError.correlationId}</span>
+                {#if copiedCorrelationId}
+                  <span class="text-status-success-text font-bold">✓</span>
+                {/if}
+              </button>
+            {/if}
+          </div>
+          <p class="mt-1 text-xs text-ink/80 leading-relaxed">{activeAuthError.userMessage}</p>
+          <div
+            class="mt-2.5 flex items-center justify-between text-[11px] text-ink-dim border-t border-status-danger-border/30 pt-2"
+          >
+            <span class="flex items-center gap-1">
+              <CIcon name="shield" size={12} />
+              <span>Logged to Central Audit Console</span>
+            </span>
+            <button
+              type="button"
+              class="text-ink font-semibold hover:underline"
+              on:click={() => {
+                activeAuthError = null;
+                errorMsg = '';
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  {:else if errorMsg}
     <div
       class="mb-4 flex items-center gap-2 rounded-[4px] border border-status-danger-border bg-status-danger-bg p-2.5 text-xs text-status-danger-text"
     >
@@ -179,11 +301,26 @@
       id="email"
       type="email"
       label="Work Email"
-      placeholder="analyst@enterprise.com"
+      placeholder="e.g. name@company.io or analyst@enterprise.com"
       bind:value={email}
+      on:input={() => {
+        if (email.includes('@') || email.length > 5) isEmailTouched = true;
+      }}
+      on:blur={() => {
+        if (email) isEmailTouched = true;
+      }}
       required
       disabled={isLoading}
-    />
+      error={emailError}
+    >
+      <div slot="trailing">
+        {#if isEmailValid && !emailError}
+          <div class="text-status-success-text pr-1 flex items-center">
+            <CIcon name="check" size={14} color="#16a34a" />
+          </div>
+        {/if}
+      </div>
+    </CTextBox>
 
     <CTextBox
       id="password"
@@ -194,6 +331,33 @@
       required
       disabled={isLoading}
     />
+
+    {#if mode === 'signup' && password}
+      <div
+        class="mt-1 flex flex-col gap-1.5 rounded-[4px] bg-surface-subtle border border-border-hairline p-2 text-xs"
+      >
+        <div class="flex items-center justify-between">
+          <span class="text-[0.7rem] uppercase tracking-wider font-semibold text-ink-muted"
+            >Entropy / Strength:</span
+          >
+          <span class="font-bold text-[0.72rem]" style="color: {strength.color};">
+            {strength.label} ({strength.score}%)
+          </span>
+        </div>
+        <div class="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200">
+          <div
+            class="h-full transition-all duration-300"
+            style="width: {strength.score}%; background-color: {strength.color};"
+          ></div>
+        </div>
+        <span class="text-[0.68rem] text-ink-muted">{strength.feedback}</span>
+      </div>
+    {/if}
+
+    <div class="flex items-center gap-1.5 text-[0.68rem] text-ink-muted mt-0.5">
+      <CIcon name="shield" size={11} color="#ca8a04" />
+      <span>Encrypted in browser via 4096-bit RSA asymmetric envelope</span>
+    </div>
 
     <div class="pt-2">
       <CButton
@@ -208,7 +372,9 @@
   </form>
 
   <!-- Divider -->
-  <div class="my-5 flex items-center text-center text-[0.7rem] font-semibold tracking-wider text-ink-dim uppercase">
+  <div
+    class="my-5 flex items-center text-center text-[0.7rem] font-semibold tracking-wider text-ink-dim uppercase"
+  >
     <div class="flex-1 border-b border-border-hairline"></div>
     <span class="px-3">OR</span>
     <div class="flex-1 border-b border-border-hairline"></div>

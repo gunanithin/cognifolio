@@ -1,9 +1,18 @@
 import { progress } from './stores/progress.js';
+import {
+  deriveClientCredential,
+  createSecureAuthEnvelope,
+  evaluatePasswordStrength,
+} from './crypto/authCrypto.js';
 
-const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+const API_URL = (
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) ||
+  (typeof process !== 'undefined' && process.env?.VITE_API_URL) ||
+  ''
+).replace(/\/+$/, '');
 const API_BASE = `${API_URL}/api/v1`;
 
-export { progress };
+export { progress, evaluatePasswordStrength };
 
 const TOKEN_KEY = 'cognifolio_access_token';
 const USER_KEY = 'cognifolio_user';
@@ -102,6 +111,12 @@ async function authFetch(endpoint, options = {}) {
     }
 
     return response;
+  } catch (networkErr) {
+    if (networkErr && !networkErr.status) {
+      networkErr.status = 0;
+      networkErr.endpoint = endpoint;
+    }
+    throw networkErr;
   } finally {
     if (!skipProgress) {
       progress.done();
@@ -109,44 +124,141 @@ async function authFetch(endpoint, options = {}) {
   }
 }
 
+function formatApiError(err, defaultMsg = 'Operation failed') {
+  if (!err) return defaultMsg;
+  if (typeof err === 'string') return err;
+  if (typeof err.detail === 'string') return err.detail;
+  if (Array.isArray(err.detail) && err.detail.length > 0) {
+    const first = err.detail[0];
+    const field = first.loc ? first.loc[first.loc.length - 1] : '';
+    if (field === 'email') {
+      return 'Please enter a valid email address (e.g. name@company.io).';
+    }
+    if (field === 'password') {
+      return 'Password does not meet required criteria.';
+    }
+    return first.msg || defaultMsg;
+  }
+  return err.message || defaultMsg;
+}
+
 // ==========================================
 // Authentication Endpoints
 // ==========================================
 
 export async function registerUser(name, email, password) {
-  const res = await authFetch('/auth/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, email, password }),
-    progressMessage: 'Creating enterprise account...',
-  });
+  try {
+    const derivedCredential = await deriveClientCredential(password, email);
+    const envelope = await createSecureAuthEnvelope(email, {
+      name,
+      credential: derivedCredential,
+      raw_fallback: password,
+    });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || 'Registration failed');
+    const res = await authFetch('/auth/secure-register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(envelope),
+      progressMessage: 'Encrypting credentials & creating account...',
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const message = formatApiError(err, 'Registration failed');
+      const error = new Error(message);
+      error.status = res.status;
+      error.endpoint = '/auth/secure-register';
+      error.correlation_id = err.correlation_id || res.headers.get('x-correlation-id');
+      error.detail = err.detail;
+      throw error;
+    }
+
+    const data = await res.json();
+    setAuthSession(data.access_token, data.user);
+    return data;
+  } catch (err) {
+    if (err.message && (err.message.includes('Web Cryptography') || err.message.includes('404'))) {
+      const res = await authFetch('/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
+        progressMessage: 'Creating enterprise account...',
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        const message = formatApiError(errJson, 'Registration failed');
+        const error = new Error(message);
+        error.status = res.status;
+        error.endpoint = '/auth/register';
+        error.correlation_id = errJson.correlation_id || res.headers.get('x-correlation-id');
+        error.detail = errJson.detail;
+        throw error;
+      }
+
+      const data = await res.json();
+      setAuthSession(data.access_token, data.user);
+      return data;
+    }
+    throw err;
   }
-
-  const data = await res.json();
-  setAuthSession(data.access_token, data.user);
-  return data;
 }
 
 export async function loginUser(email, password) {
-  const res = await authFetch('/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-    progressMessage: 'Authenticating...',
-  });
+  try {
+    const derivedCredential = await deriveClientCredential(password, email);
+    const envelope = await createSecureAuthEnvelope(email, {
+      credential: derivedCredential,
+      raw_fallback: password,
+    });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || 'Invalid email or password');
+    const res = await authFetch('/auth/secure-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(envelope),
+      progressMessage: 'Encrypting session credentials...',
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const message = formatApiError(err, 'Invalid email or password');
+      const error = new Error(message);
+      error.status = res.status;
+      error.endpoint = '/auth/secure-login';
+      error.correlation_id = err.correlation_id || res.headers.get('x-correlation-id');
+      error.detail = err.detail;
+      throw error;
+    }
+
+    const data = await res.json();
+    setAuthSession(data.access_token, data.user);
+    return data;
+  } catch (err) {
+    if (err.message && (err.message.includes('Web Cryptography') || err.message.includes('404'))) {
+      const res = await authFetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+        progressMessage: 'Authenticating...',
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        const message = formatApiError(errJson, 'Invalid email or password');
+        const error = new Error(message);
+        error.status = res.status;
+        error.endpoint = '/auth/login';
+        error.correlation_id = errJson.correlation_id || res.headers.get('x-correlation-id');
+        error.detail = errJson.detail;
+        throw error;
+      }
+
+      const data = await res.json();
+      setAuthSession(data.access_token, data.user);
+      return data;
+    }
+    throw err;
   }
-
-  const data = await res.json();
-  setAuthSession(data.access_token, data.user);
-  return data;
 }
 
 export async function startGuestSession() {
@@ -453,5 +565,79 @@ export async function compareDocuments(baseDocumentId, targetDocumentId, focusAs
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || 'Failed to compare documents');
   }
+  return await res.json();
+}
+
+// ==========================================
+// Developer Telemetry & Supabase Error Audit
+// ==========================================
+
+export async function fetchDeveloperTelemetryLogs(filters = {}, developerToken = null) {
+  const params = new URLSearchParams();
+  if (filters.page) params.append('page', String(filters.page));
+  if (filters.limit) params.append('limit', String(filters.limit));
+  if (filters.user_type) params.append('user_type', filters.user_type);
+  if (filters.subsystem) params.append('subsystem', filters.subsystem);
+  if (filters.severity) params.append('severity', filters.severity);
+  if (filters.status_code) params.append('status_code', String(filters.status_code));
+  if (filters.search) params.append('search', filters.search);
+
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  const headers = {};
+  if (developerToken) {
+    headers['Authorization'] = `Bearer ${developerToken}`;
+  }
+
+  const res = await authFetch(`/telemetry/errors${qs}`, {
+    method: 'GET',
+    headers,
+    skipProgress: true,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to fetch telemetry audit logs');
+  }
+
+  return await res.json();
+}
+
+export async function fetchDeveloperTelemetryStats(developerToken = null) {
+  const headers = {};
+  if (developerToken) {
+    headers['Authorization'] = `Bearer ${developerToken}`;
+  }
+
+  const res = await authFetch('/telemetry/stats', {
+    method: 'GET',
+    headers,
+    skipProgress: true,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to fetch telemetry metrics');
+  }
+
+  return await res.json();
+}
+
+export async function fetchTelemetryLogDetail(correlationId, developerToken = null) {
+  const headers = {};
+  if (developerToken) {
+    headers['Authorization'] = `Bearer ${developerToken}`;
+  }
+
+  const res = await authFetch(`/telemetry/errors/${encodeURIComponent(correlationId)}`, {
+    method: 'GET',
+    headers,
+    skipProgress: true,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to fetch telemetry log for ${correlationId}`);
+  }
+
   return await res.json();
 }

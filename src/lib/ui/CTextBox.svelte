@@ -48,9 +48,12 @@
       on:input={handleInput}
       on:keydown={handleKeyDown}
       on:change
+      on:blur
       class="w-full rounded-[4px] border border-border-hairline bg-surface px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-dim transition-all duration-150 focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink disabled:opacity-50 disabled:cursor-not-allowed {$$slots.leading
         ? 'pl-10'
-        : ''} {$$slots.trailing ? 'pr-10' : ''} {error ? 'border-status-danger-border ring-1 ring-status-danger-border' : ''}"
+        : ''} {$$slots.trailing ? 'pr-10' : ''} {error
+        ? 'border-status-danger-border ring-1 ring-status-danger-border'
+        : ''}"
     />
 
     {#if $$slots.trailing}
