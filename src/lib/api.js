@@ -12,13 +12,47 @@ const USER_KEY = 'cognifolio_user';
 // Authentication State Management
 // ==========================================
 
+export function isTokenExpired(token) {
+  if (!token || typeof token !== 'string') return true;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    let jsonStr;
+    if (typeof atob === 'function') {
+      jsonStr = atob(base64);
+    } else if (typeof Buffer !== 'undefined') {
+      jsonStr = Buffer.from(base64, 'base64').toString('utf-8');
+    } else {
+      return false;
+    }
+    const payload = JSON.parse(jsonStr);
+    if (!payload.exp) return false;
+    // 30-second leeway buffer prevents in-flight race condition on token expiration
+    return Date.now() >= (payload.exp - 30) * 1000;
+  } catch {
+    return true;
+  }
+}
+
 export function getAuthToken() {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(TOKEN_KEY);
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return null;
+  if (isTokenExpired(token)) {
+    clearAuthSession();
+    return null;
+  }
+  return token;
 }
 
 export function getCurrentUser() {
   if (typeof window === 'undefined') return null;
+  if (!getAuthToken()) {
+    clearAuthSession();
+    return null;
+  }
   try {
     const raw = localStorage.getItem(USER_KEY);
     return raw ? JSON.parse(raw) : null;
@@ -62,6 +96,10 @@ async function authFetch(endpoint, options = {}) {
       ...fetchOptions,
       headers,
     });
+
+    if (response.status === 401) {
+      clearAuthSession();
+    }
 
     return response;
   } finally {
@@ -182,15 +220,34 @@ export async function fetchHealth() {
 }
 
 export async function uploadDocument(file, retentionDays = 90) {
+  // Pre-flight check: ensure an active authenticated session exists before payload dispatch
+  if (!getAuthToken()) {
+    await startGuestSession();
+  }
+
   const formData = new FormData();
   formData.append('file', file);
   formData.append('retention_days', retentionDays);
 
-  const res = await authFetch('/documents/upload', {
+  let res = await authFetch('/documents/upload', {
     method: 'POST',
     body: formData,
     progressMessage: 'Uploading & extracting document intelligence...',
   });
+
+  // Self-healing auto-recovery: if session token expired in flight or was revoked, refresh guest session and retry once
+  if (res.status === 401) {
+    const user = getCurrentUser();
+    if (!user || user.is_guest || user.role === 'guest') {
+      clearAuthSession();
+      await startGuestSession();
+      res = await authFetch('/documents/upload', {
+        method: 'POST',
+        body: formData,
+        progressMessage: 'Uploading & extracting document intelligence (refreshed session)...',
+      });
+    }
+  }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

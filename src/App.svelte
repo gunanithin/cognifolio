@@ -427,7 +427,13 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
       return;
     }
 
-    // Initiate guest session on-demand only when unauthenticated user uploads a document
+    // Reset file input element values so selecting the same file triggers on:change
+    const globalInput = document.getElementById('global-file-input');
+    if (globalInput) globalInput.value = '';
+    const localInput = document.getElementById('file-input');
+    if (localInput) localInput.value = '';
+
+    // Initiate guest session on-demand only when unauthenticated or token expired
     if (!getAuthToken()) {
       try {
         const guestData = await startGuestSession();
@@ -453,6 +459,7 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
       const res = await uploadDocument(fileToUpload, retentionDays);
       uploadStep = 5;
       selectedDoc = res;
+      currentUser = getCurrentUser();
       documents = [res, ...documents.filter((d) => d.id !== res.id)];
       isUploading = false;
       uploadStep = 0;
@@ -1015,6 +1022,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
         {totalPages}
         {sampleDocuments}
         on:upload={triggerFileInput}
+        on:uploadFile={(e) => handleFileUpload(e.detail.file)}
         on:uploadSample={(e) => uploadSample(e.detail.sample)}
         on:viewDocument={(e) => viewDocumentDetail(e.detail.docId)}
         on:compareDocument={(e) => openCompareWithDoc(e.detail.docId)}

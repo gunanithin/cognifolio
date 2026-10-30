@@ -9,6 +9,7 @@
   export let sampleDocuments = [];
 
   const dispatch = createEventDispatcher();
+  let isDragOver = false;
 
   function handleFileSelected(e) {
     const file = e.target.files?.[0];
@@ -52,7 +53,18 @@
 
   <div class="upload-grid">
     <!-- Drop Zone -->
-    <div class="glass-card dropzone-card">
+    <div
+      class="glass-card dropzone-card {isDragOver ? 'drag-over' : ''}"
+      role="region"
+      aria-label="Document drop zone"
+      on:dragover|preventDefault={() => (isDragOver = true)}
+      on:dragleave={() => (isDragOver = false)}
+      on:drop|preventDefault={(e) => {
+        isDragOver = false;
+        const file = e.dataTransfer?.files?.[0];
+        if (file) dispatch('upload', { file });
+      }}
+    >
       <div class="dropzone">
         <input
           type="file"
