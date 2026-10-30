@@ -378,7 +378,11 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
         });
       };
       const handleGlobalKeydown = (event) => {
-        if ((event.ctrlKey || event.metaKey) && event.shiftKey && (event.key === 'D' || event.key === 'd')) {
+        if (
+          (event.ctrlKey || event.metaKey) &&
+          event.shiftKey &&
+          (event.key === 'D' || event.key === 'd')
+        ) {
           event.preventDefault();
           isDeveloperAuditOpen = !isDeveloperAuditOpen;
         }
@@ -1227,6 +1231,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
 
   <!-- Bottom Navigation Bar (Single Persistent Unified Cognifolio Footer) -->
   <AppFooter
+    {currentUser}
     on:openTerms={() => (isTermsModalOpen = true)}
     on:openPricing={() => (isPricingModalOpen = true)}
     on:openSecurityGuide={() => (isSecurityGuideOpen = true)}

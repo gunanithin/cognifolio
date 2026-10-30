@@ -1,6 +1,8 @@
 <script>
   import { createEventDispatcher } from 'svelte';
 
+  export let currentUser = null;
+
   const dispatch = createEventDispatcher();
 
   function openMorrowless() {
@@ -66,15 +68,17 @@
       >
         Security &amp; Protection Policy
       </button>
-      <span class="footer-dot">•</span>
-      <button
-        type="button"
-        class="footer-license-btn"
-        on:click={() => dispatch('openDeveloperAudit')}
-        title="Developer Observability & Telemetry Audit Console"
-      >
-        Developer Audit
-      </button>
+      {#if currentUser && !currentUser.is_guest && (currentUser.role === 'developer' || currentUser.role === 'admin')}
+        <span class="footer-dot">•</span>
+        <button
+          type="button"
+          class="footer-license-btn"
+          on:click={() => dispatch('openDeveloperAudit')}
+          title="Developer Observability & Telemetry Audit Console"
+        >
+          Developer Audit
+        </button>
+      {/if}
     </div>
   </div>
 </footer>

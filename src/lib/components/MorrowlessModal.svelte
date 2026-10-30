@@ -155,6 +155,7 @@
     width: 100%;
     max-width: 580px;
     max-height: min(90vh, 90dvh);
+    overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     background: #0a0a0a;
@@ -165,6 +166,26 @@
       0 0 40px rgba(255, 255, 255, 0.03);
     color: #ffffff;
     text-align: center;
+    color-scheme: dark;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  }
+
+  .morrow-card::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .morrow-card::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .morrow-card::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 9999px;
+  }
+
+  .morrow-card::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.35);
   }
 
   .close-btn {
@@ -192,18 +213,18 @@
   }
 
   .brand-showcase {
-    padding: 44px 36px 36px;
+    padding: 34px 32px 24px;
     background: radial-gradient(circle at 50% 20%, rgba(242, 184, 75, 0.08) 0%, transparent 70%);
   }
 
   .emblem-wrap {
     display: flex;
     justify-content: center;
-    margin-bottom: 20px;
+    margin-bottom: 14px;
   }
 
   .emblem-img {
-    height: 64px;
+    height: 54px;
     width: auto;
     object-fit: contain;
     filter: drop-shadow(0 4px 20px rgba(242, 184, 75, 0.3));
@@ -221,11 +242,11 @@
       'Segoe UI',
       Roboto,
       sans-serif;
-    font-size: 2.1rem;
+    font-size: 2rem;
     font-weight: 800;
     letter-spacing: 0.24em;
     color: #ffffff;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
   }
 
   .wm-letter {
@@ -253,11 +274,11 @@
 
   .tagline {
     font-family: var(--font-mono, monospace);
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     font-weight: 600;
     letter-spacing: 0.22em;
     color: #a1a1aa;
-    margin: 0 0 24px 0;
+    margin: 0 0 18px 0;
     text-transform: uppercase;
   }
 
@@ -265,16 +286,16 @@
     width: 52px;
     height: 1px;
     background: rgba(255, 255, 255, 0.22);
-    margin: 0 auto 28px;
+    margin: 0 auto 20px;
   }
 
   .credo-quote {
     font-family: var(--font-heading, 'Playfair Display', Georgia, serif);
-    font-size: 1.55rem;
+    font-size: 1.45rem;
     font-weight: 500;
-    line-height: 1.45;
+    line-height: 1.4;
     color: #f4f4f5;
-    margin: 0 0 24px 0;
+    margin: 0 0 18px 0;
   }
 
   .credo-quote span {
@@ -284,7 +305,7 @@
 
   .collective-tag {
     font-family: var(--font-mono, monospace);
-    font-size: 0.66rem;
+    font-size: 0.64rem;
     letter-spacing: 0.28em;
     color: #71717a;
     text-transform: uppercase;
@@ -294,7 +315,7 @@
   .license-tray {
     background: #111111;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
-    padding: 24px 32px;
+    padding: 18px 28px;
     text-align: left;
   }
 

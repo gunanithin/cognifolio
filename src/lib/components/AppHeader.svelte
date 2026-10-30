@@ -8,6 +8,19 @@
 
   const dispatch = createEventDispatcher();
   let isUserMenuOpen = false;
+  let userMenuContainer;
+
+  function handleWindowClick(event) {
+    if (isUserMenuOpen && userMenuContainer && !userMenuContainer.contains(event.target)) {
+      isUserMenuOpen = false;
+    }
+  }
+
+  function handleWindowKeydown(event) {
+    if (event.key === 'Escape' && isUserMenuOpen) {
+      isUserMenuOpen = false;
+    }
+  }
 
   function handleLogoClick() {
     dispatch('navigate', { tab: 'portal', anchor: null });
@@ -43,6 +56,8 @@
     dispatch('logout');
   }
 </script>
+
+<svelte:window on:click={handleWindowClick} on:keydown={handleWindowKeydown} />
 
 <header class="app-unified-header">
   <div class="header-inner">
@@ -115,7 +130,7 @@
       {/if}
 
       <!-- User Avatar Chip & Session Menu -->
-      <div class="user-menu-wrapper">
+      <div class="user-menu-wrapper" bind:this={userMenuContainer}>
         <button
           type="button"
           class="user-avatar-chip"
@@ -229,20 +244,22 @@
               >Zero-Trust Privacy Spec</button
             >
             <button class="menu-item-btn" on:click={openMorrowless}>Morrowless Collective</button>
-            <div class="menu-divider"></div>
-            <button
-              type="button"
-              class="menu-item-btn"
-              on:click={() => {
-                isUserMenuOpen = false;
-                dispatch('openDeveloperAudit');
-              }}
-            >
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <CIcon name="shield" size={13} color="#ca8a04" />
-                <span>Developer Audit Console</span>
-              </div>
-            </button>
+            {#if currentUser && !currentUser.is_guest && (currentUser.role === 'developer' || currentUser.role === 'admin')}
+              <div class="menu-divider"></div>
+              <button
+                type="button"
+                class="menu-item-btn"
+                on:click={() => {
+                  isUserMenuOpen = false;
+                  dispatch('openDeveloperAudit');
+                }}
+              >
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <CIcon name="shield" size={13} color="#ca8a04" />
+                  <span>Developer Audit Console</span>
+                </div>
+              </button>
+            {/if}
           </div>
         {/if}
       </div>
