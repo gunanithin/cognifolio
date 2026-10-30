@@ -5,6 +5,7 @@
 
   export let currentUser = null;
   export let activeTab = 'portal';
+  export let showPricing = false; // Hidden from UI navigation for now per product requirements
 
   const dispatch = createEventDispatcher();
   let isUserMenuOpen = false;
@@ -101,9 +102,11 @@
         Workspace
       </a>
       <button type="button" class="nav-text-btn" on:click={openSecurityGuide}> Security </button>
-      <button type="button" class="nav-text-btn" on:click={openPricing}>
-        Pricing <span class="nav-free-badge">Free</span>
-      </button>
+      {#if showPricing}
+        <button type="button" class="nav-text-btn" on:click={openPricing}>
+          Pricing <span class="nav-free-badge">Free</span>
+        </button>
+      {/if}
     </nav>
 
     <!-- Right Actions -->
@@ -201,15 +204,17 @@
               >
                 Workspace Studio ↗
               </button>
-              <button
-                class="menu-item-btn"
-                on:click={() => {
-                  isUserMenuOpen = false;
-                  openPricing();
-                }}
-              >
-                Pricing (Free)
-              </button>
+              {#if showPricing}
+                <button
+                  class="menu-item-btn"
+                  on:click={() => {
+                    isUserMenuOpen = false;
+                    openPricing();
+                  }}
+                >
+                  Pricing (Free)
+                </button>
+              {/if}
               <div class="menu-divider"></div>
             </div>
 

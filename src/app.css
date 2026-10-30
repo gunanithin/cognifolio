@@ -16,6 +16,10 @@
   --bg-card-hover: #f1f5f9;
   --bg-subtle: #f1f5f9;
   --bg-active: #e2e8f0;
+  --bg-surface: #ffffff;
+  --bg-surface-subtle: #f1f5f9;
+  --bg-surface-hover: #f1f5f9;
+  --bg-canvas: #f8f9fa;
   --bg-header: rgba(255, 255, 255, 0.94);
   --bg-footer: rgba(255, 255, 255, 0.96);
 
@@ -24,6 +28,9 @@
   --text-muted: #475569;
   --text-dim: #64748b;
   --text-inverse: #ffffff;
+  --text-ink: #0f172a;
+  --text-ink-muted: #475569;
+  --text-ink-dim: #64748b;
 
   /* Borders & Dividers */
   --border-color: #e2e8f0;
@@ -97,6 +104,10 @@
   --bg-card-hover: #171a21;
   --bg-subtle: #14171d;
   --bg-active: #20242e;
+  --bg-surface: #121419;
+  --bg-surface-subtle: #14171d;
+  --bg-surface-hover: #171a21;
+  --bg-canvas: #08090b;
   --bg-header: rgba(8, 9, 11, 0.94);
   --bg-footer: rgba(8, 9, 11, 0.96);
 
@@ -105,6 +116,9 @@
   --text-muted: #b4b8c0;
   --text-dim: #7e838f;
   --text-inverse: #08090b;
+  --text-ink: #f6f6f6;
+  --text-ink-muted: #b4b8c0;
+  --text-ink-dim: #7e838f;
 
   /* Borders & Dividers */
   --border-color: #2b2e35;

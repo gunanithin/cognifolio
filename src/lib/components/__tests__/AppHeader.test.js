@@ -18,8 +18,20 @@ describe('AppHeader Component', () => {
     expect(html).toContain('How it works');
     expect(html).toContain('Workspace');
     expect(html).toContain('Security');
-    expect(html).toContain('Pricing');
+    expect(html).not.toContain('Pricing');
     expect(html).not.toContain('Launch Studio ↗');
+  });
+
+  it('renders pricing menu action only when showPricing is true', () => {
+    const hiddenRender = render(AppHeader, {
+      props: { currentUser: null, activeTab: 'portal' },
+    });
+    expect(hiddenRender.html).not.toContain('Pricing');
+
+    const visibleRender = render(AppHeader, {
+      props: { currentUser: null, activeTab: 'portal', showPricing: true },
+    });
+    expect(visibleRender.html).toContain('Pricing');
   });
 
   it('renders user chip when logged in', () => {
