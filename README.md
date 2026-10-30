@@ -79,6 +79,30 @@ Engineered for enterprise banking, healthcare (HIPAA), and international privacy
 - **Automated Retention Lifecycle**: Visual indicator tracking 90-day automated TTL purging (GDPR Article 17 Right-to-Erasure compliance).
 - **Cryptographic Audit Export**: Authenticated one-click download of the complete immutable event trail in CSV or JSON format.
 
+### 🔐 6. Zero-Knowledge Client-Side Encrypted Authentication
+
+Enterprise credential protection powered by the **W3C Web Crypto API**:
+
+- **Pre-Transmission RSA-2048 Envelope Encryption**: Passwords and credentials never cross the wire in plaintext. The client fetches the backend’s RSA-2048 public key, generates an ephemeral AES-256-GCM symmetric session key, encrypts the payload, and wraps the key via RSA-OAEP.
+- **Client Credential Derivation**: Domain-salted PBKDF2 credential derivation (100,000 iterations) producing deterministic `CF$...` tokens, preventing rainbow table attacks and credential snooping in transit.
+- **Guest Session Continuity**: Seamlessly upgrades anonymous guest sessions into persistent encrypted vaults upon registration without losing uploaded documents.
+
+### 📊 7. Developer Observability & Telemetry Audit Console
+
+Integrated observability for enterprise site reliability and compliance engineers:
+
+- **Role-Based Access Control (RBAC)**: Gated strictly to accounts with the `developer` or `admin` role.
+- **Live Health Metrics**: 4 real-time KPI ribbon cards displaying Error Rate, P95 Latency, Total Events, and Active Incidents.
+- **Correlation ID Tracking**: Every client-side or API exception issues an empathetic toast with an instant 1-click copyable Reference ID (`ERR-XXXX-XXXX`) linked directly to Supabase PostgreSQL audit logs.
+- **Incident Investigation Drawer**: Searchable, filterable incident grid with deep inspection of stack traces, HTTP status codes, client environment context, and direct SQL forensic query hints.
+
+### ☁️ 8. Cloud-Native GCS Document Streaming
+
+Zero local device storage footprint for high-security enterprise environments:
+
+- Documents are archived in **Google Cloud Storage (GCS)** (`gs://cognifolio-prod-storage/`) and streamed directly to the client canvas with dynamic MIME handling and `Content-Disposition: inline`.
+- Supports viewing and switching between original documents and compliance-redacted copies with physically burned-in black-box masks.
+
 ---
 
 ## 3. Technology Stack & Architecture
@@ -106,6 +130,9 @@ Engineered for enterprise banking, healthcare (HIPAA), and international privacy
 | **Framework**          | [Svelte 5](https://svelte.dev/)             | `^5.0.0`   | Ultra-lean compiled reactive architecture with modern Svelte 5 runes (`$state`, `$derived`, `$effect`) for zero virtual DOM overhead. |
 | **Build Tool**         | [Vite](https://vitejs.dev/)                 | `^5.4.0`   | Sub-millisecond Hot Module Replacement (HMR) and optimized Rollup production asset chunking.                                          |
 | **Document Canvas**    | [PDF.js](https://mozilla.github.io/pdf.js/) | `^4.0.379` | Multi-threaded client-side visual PDF parsing using dedicated background Web Workers.                                                 |
+| **Cryptography**       | [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) | Native W3C | RSA-OAEP (2048-bit), AES-256-GCM envelope encryption, and PBKDF2 credential derivation directly in the browser runtime.               |
+| **Cloud Storage**      | [Google Cloud Storage (GCS)](https://cloud.google.com/storage) | API Stream | Direct inline streaming of original and redacted documents from `gs://cognifolio-prod-storage/` without local device storage footprint.|
+| **Observability**      | Centralized Telemetry + Supabase PostgreSQL | `v1.0.0`   | Correlation ID tracking (`ERR-...`), client error logging, real-time KPI ribbon metrics, and developer audit console.               |
 | **Data Visualization** | [Chart.js](https://www.chartjs.org/)        | `^4.4.0`   | Financial distribution donut charts and compliance audit trail line graphs.                                                           |
 | **Typography**         | Google Fonts                                | Web        | Curated editorial pairing: `Playfair Display` (headings), `Inter` (UI body), `JetBrains Mono` (financial data/code).                  |
 | **Styling**            | Vanilla CSS + Tokens                        | Native     | Zero CSS-in-JS runtime overhead; bespoke CSS custom properties with scoped micro-transitions.                                         |
@@ -179,6 +206,64 @@ All communication with `cognifolio-api` is routed through `authFetch(endpoint, o
 - In development, requests to `/api` are automatically proxied by Vite (`vite.config.js`) to `http://localhost:8000`.
 - Automatically injects `Authorization: Bearer <token>` when a session JWT exists.
 - In the event of backend offline status, Vite responds with an informative `503 Service Unavailable` JSON envelope rather than an unhandled HTML crash.
+
+### 5. Zero-Knowledge Client-Side Encryption (`src/lib/crypto/authCrypto.js`)
+
+Cognifolio protects authentication credentials before network transmission using browser-native cryptography:
+
+```javascript
+import { createSecureAuthEnvelope, deriveClientCredential } from './lib/crypto/authCrypto.js';
+
+// 1. Derive domain-salted deterministic client credential
+const clientCredential = await deriveClientCredential(email, password);
+
+// 2. Wrap credential into hybrid RSA-2048 + AES-256-GCM envelope
+const envelope = await createSecureAuthEnvelope(
+  { email, clientCredential, timestamp: Date.now() },
+  serverRsaPublicKeyPem
+);
+
+// 3. Dispatch to secure endpoints (/api/v1/auth/secure-login or /secure-register)
+await authFetch('/api/v1/auth/secure-login', {
+  method: 'POST',
+  body: JSON.stringify({ envelope })
+});
+```
+
+- **Zero Plaintext Transmission**: Plaintext passwords never leave the client or enter network traces.
+- **W3C Web Crypto Standard**: Executes in hardware-accelerated browser cryptographic modules without heavy external npm libraries.
+
+### 6. Centralized Telemetry & Error Correlation (`src/lib/stores/telemetry.js`)
+
+All system anomalies, network failures, and processing errors trigger the centralized telemetry engine:
+
+- Generates unique correlation IDs formatted as `ERR-XXXX-XXXX`.
+- Displays empathetic, plain-English notifications with a **1-click "Copy Ref ID"** action for instant developer reporting.
+- Reports error details asynchronously to the backend telemetry router (`POST /api/v1/telemetry/errors`), recording subsystem, HTTP status, and client browser metadata in Supabase PostgreSQL.
+
+### 7. Role-Based Developer Audit Console (`src/lib/components/DeveloperAuditModal.svelte`)
+
+Enterprise observability designed specifically for platform engineers:
+
+- **RBAC Security**: Only accessible to authenticated accounts with `developer` or `admin` roles; hidden from standard analysts.
+- **Real-Time KPI Ribbon**: Tracks system health via 4 live metrics: Error Rate (%), P95 Latency (ms), Total Events, and Active Incidents.
+- **Incident Inspection Drawer**: Interactive drawer with stack traces, client runtime context, payload previews, and direct Supabase SQL query references. Stays anchored during inspection and closes via outside clicks or the close button.
+- **Forensic Export**: One-click JSON export of filtered audit logs for local developer debugging.
+
+### 8. Cloud-Native GCS Streaming & Zero Local Footprint
+
+Original files and burned-in redacted copies are streamed directly from **Google Cloud Storage (GCS)**:
+
+- Client uses secure streaming endpoints (`/api/v1/documents/{id}/file` and `redacted-file`) with JWT authentication via headers or `?token=` parameters.
+- Viewports dynamically render PDF, Word, Excel, and Image bytes directly from cloud storage streams without downloading files to local client disks.
+
+### 9. Mandatory Default Error Handling Standard
+
+In accordance with Cognifolio engineering guidelines, all new code, async operations, and user interactions **must** implement defensive error handling:
+
+- **No Silent Swallowing**: Empty catch blocks (`catch (err) {}`) are strictly prohibited.
+- **State Recovery in `finally`**: Progress bars (`progress.done()`) and loading flags (`isLoading = false`) must always be restored inside `finally` blocks so UI components never freeze upon failure.
+- **Defensive Property Access**: Use optional chaining (`data?.items || []`) and sensible fallbacks across all API responses.
 
 ---
 

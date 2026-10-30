@@ -105,6 +105,19 @@ Component | Path | Purpose
   ```
 - Never restrict the frontend dropzone to `.pdf` alone.
 
+### Rule 6: Mandatory Default Error Handling & Observability
+- **Whenever new code, user interactions, async operations, or business logic are implemented, error handling MUST be implemented by default.**
+- **No Unhandled Promises or Silent Swallowing**:
+  - Never leave unhandled promise rejections or empty catch blocks (`catch (err) {}`).
+  - Always wrap asynchronous calls and state-mutating operations in structured `try ... catch ... finally` blocks.
+- **Empathetic & Actionable User Notification**:
+  - Caught errors must provide clear, user-facing feedback via the centralized `telemetry.error({ title, message, error })` store or global toast alerts.
+  - Explanations must be plain-English and empathetic (e.g., *"Unable to extract document tables. Please verify file integrity and try again"* rather than raw runtime tracebacks like `TypeError: Cannot read properties of undefined`).
+- **Defensive State Recovery in `finally`**:
+  - Always reset asynchronous loading indicators, progress bars, and modal state locks inside a `finally` block (e.g., `isLoading = false`, `progress.done()`, `isSaving = false`). Interactive controls must never remain permanently frozen if an operation fails.
+- **Defensive Data Parsing & Fallback Values**:
+  - Always guard access to nested API responses or JSON attributes using optional chaining (`response?.data?.items || []`) and sensible fallbacks. Never assume network payloads are well-formed.
+
 ---
 
 ## 5. API Client & Authentication (`src/lib/api.js`)

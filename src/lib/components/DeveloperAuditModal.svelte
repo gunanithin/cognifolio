@@ -686,6 +686,9 @@
             role="dialog"
             aria-modal="true"
             aria-label="Error Telemetry Record Inspection"
+            tabindex="-1"
+            on:click|stopPropagation
+            on:keydown|stopPropagation
           >
             <!-- Drawer Header -->
             <div class="drawer-header">
