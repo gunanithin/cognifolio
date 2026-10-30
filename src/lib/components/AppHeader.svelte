@@ -229,6 +229,20 @@
               >Zero-Trust Privacy Spec</button
             >
             <button class="menu-item-btn" on:click={openMorrowless}>Morrowless Collective</button>
+            <div class="menu-divider"></div>
+            <button
+              type="button"
+              class="menu-item-btn"
+              on:click={() => {
+                isUserMenuOpen = false;
+                dispatch('openDeveloperAudit');
+              }}
+            >
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <CIcon name="shield" size={13} color="#ca8a04" />
+                <span>Developer Audit Console</span>
+              </div>
+            </button>
           </div>
         {/if}
       </div>
