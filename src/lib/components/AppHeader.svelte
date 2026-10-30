@@ -1,6 +1,7 @@
 <script>
   import { createEventDispatcher } from 'svelte';
   import CIcon from '../icons/CIcon.svelte';
+  import { theme } from '../stores/theme.js';
 
   export let currentUser = null;
   export let activeTab = 'portal';
@@ -52,7 +53,7 @@
       tabindex="0"
       on:click={handleLogoClick}
       on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleLogoClick()}
-      title="Cognifolio by Morrowless — Return to Overview"
+      title="Cognifolio by Morrowless · Return to Overview"
     >
       <div class="brand-row">
         <img src="/app-icon.png" alt="Cognifolio Logo" class="brand-icon-img" />
@@ -92,6 +93,21 @@
 
     <!-- Right Actions -->
     <div class="nav-actions">
+      <!-- Theme Switcher Button -->
+      <button
+        type="button"
+        class="theme-toggle-btn"
+        on:click={() => theme.toggle()}
+        title={$theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        aria-label={$theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+      >
+        {#if $theme === 'dark'}
+          <CIcon name="sun" size={16} color="var(--theme-dark)" />
+        {:else}
+          <CIcon name="moon" size={16} color="var(--text-main)" />
+        {/if}
+      </button>
+
       {#if !currentUser}
         <button type="button" class="header-signin-btn" on:click={() => openAuth('signin')}>
           Sign In
@@ -193,6 +209,19 @@
               >
             {/if}
             <div class="menu-divider"></div>
+            <button
+              type="button"
+              class="menu-item-btn theme-menu-btn"
+              on:click={() => {
+                theme.toggle();
+              }}
+            >
+              <div class="theme-menu-content">
+                <CIcon name={$theme === 'dark' ? 'sun' : 'moon'} size={14} color="currentColor" />
+                <span>{$theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}</span>
+              </div>
+            </button>
+            <div class="menu-divider"></div>
             <button class="menu-item-btn" on:click={openSecurityGuide}
               >Zero-Trust Privacy Spec</button
             >
@@ -209,11 +238,14 @@
     position: sticky;
     top: 0;
     z-index: 50;
-    background: rgba(8, 9, 11, 0.94);
+    background: var(--bg-header);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
-    border-bottom: 1px solid #272a30;
+    border-bottom: 1px solid var(--border-color);
     width: 100%;
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease;
   }
 
   .header-inner {
@@ -244,8 +276,8 @@
     height: 34px;
     border-radius: 8px;
     object-fit: cover;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
     flex-shrink: 0;
   }
 
@@ -258,7 +290,7 @@
     font-weight: 800;
     font-size: 21px;
     letter-spacing: -0.7px;
-    color: #f6f6f6 !important;
+    color: var(--text-main) !important;
     line-height: 1.1;
   }
 
@@ -267,7 +299,7 @@
     text-align: left;
     font-size: 8.5px;
     letter-spacing: 1.8px;
-    color: #9da2ab;
+    color: var(--text-dim);
     margin-top: 2px;
     font-weight: 700;
     background: transparent;
@@ -278,7 +310,7 @@
   }
 
   .brand-byline:hover {
-    color: #f2b84b;
+    color: var(--theme-dark);
   }
 
   /* Center Links */
@@ -286,12 +318,12 @@
     display: flex;
     align-items: center;
     gap: 26px;
-    color: #c4c6cc;
+    color: var(--text-muted);
     font-size: 13px;
   }
 
   .nav-links a {
-    color: #c4c6cc;
+    color: var(--text-muted);
     text-decoration: none;
     font-weight: 500;
     transition: color 0.15s ease;
@@ -299,13 +331,13 @@
 
   .nav-links a:hover,
   .nav-links a.active {
-    color: #f2b84b;
+    color: var(--theme-dark);
   }
 
   .nav-text-btn {
     background: transparent;
     border: none;
-    color: #c4c6cc;
+    color: var(--text-muted);
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
@@ -317,13 +349,13 @@
   }
 
   .nav-text-btn:hover {
-    color: #f2b84b;
+    color: var(--theme-dark);
   }
 
   .nav-free-badge {
-    background: #2b2210;
-    color: #f2b84b;
-    border: 1px solid #5a4524;
+    background: var(--status-amber-bg);
+    color: var(--status-amber-text);
+    border: 1px solid var(--status-amber-border);
     font-size: 10px;
     font-weight: 700;
     padding: 1px 5px;
@@ -335,7 +367,41 @@
   .nav-actions {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
+  }
+
+  .theme-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    padding: 0;
+  }
+
+  .theme-toggle-btn:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--theme-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-card);
+  }
+
+  .theme-menu-btn {
+    width: 100%;
+  }
+
+  .theme-menu-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 500;
   }
 
   .user-menu-wrapper {
@@ -346,9 +412,9 @@
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    background: #1e222b;
-    border: 1px solid #3c424e;
-    color: #f2b84b;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--theme-dark);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -360,7 +426,7 @@
   }
 
   .user-avatar-chip:hover {
-    border-color: #f2b84b;
+    border-color: var(--theme-dark);
     transform: scale(1.05);
   }
 
@@ -378,8 +444,8 @@
     width: 9px;
     height: 9px;
     border-radius: 50%;
-    background: #67d8a2;
-    border: 2px solid #08090b;
+    background: var(--status-emerald-text);
+    border: 2px solid var(--bg-card);
   }
 
   .user-dropdown-menu {
@@ -387,10 +453,10 @@
     top: calc(100% + 8px);
     right: 0;
     width: 220px;
-    background: #121419;
-    border: 1px solid #2b2e35;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    box-shadow: var(--shadow-elevated);
     padding: 8px;
     z-index: 100;
     display: flex;
@@ -408,7 +474,7 @@
   .menu-user-name {
     font-size: 12px;
     font-weight: 700;
-    color: #f6f6f6;
+    color: var(--text-main);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -416,12 +482,12 @@
 
   .menu-user-role {
     font-size: 10px;
-    color: #9da2ab;
+    color: var(--text-muted);
   }
 
   .menu-divider {
     height: 1px;
-    background: #272a30;
+    background: var(--border-color);
     margin: 4px 0;
   }
 
@@ -429,7 +495,7 @@
     background: transparent;
     border: none;
     text-align: left;
-    color: #c4c6cc;
+    color: var(--text-muted);
     font-size: 12px;
     padding: 7px 8px;
     border-radius: 4px;
@@ -440,19 +506,19 @@
   }
 
   .menu-item-btn:hover {
-    background: #181b23;
-    color: #f6f6f6;
+    background: var(--bg-card-hover);
+    color: var(--text-main);
   }
 
   .menu-item-btn.highlight-btn {
-    color: #f2b84b;
+    color: var(--theme-dark);
     font-weight: 600;
   }
 
   .header-signin-btn {
     background: transparent;
-    border: 1px solid #3b3f49;
-    color: #f6f6f6;
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
     font-size: 12px;
     font-weight: 600;
     padding: 6px 14px;
@@ -462,8 +528,8 @@
   }
 
   .header-signin-btn:hover {
-    border-color: #f2b84b;
-    color: #f2b84b;
+    border-color: var(--theme-dark);
+    color: var(--theme-dark);
     background: rgba(242, 184, 75, 0.08);
   }
 

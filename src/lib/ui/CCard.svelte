@@ -44,10 +44,10 @@
 
 <style>
   .c-card {
-    background: var(--bg-card, #121419);
-    border: 1px solid var(--border-color, #2b2e35);
+    background: var(--bg-card, #ffffff);
+    border: 1px solid var(--border-color, #e2e8f0);
     border-radius: 8px;
-    color: var(--text-main, #f6f6f6);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    color: var(--text-main, #0f172a);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
   }
 </style>

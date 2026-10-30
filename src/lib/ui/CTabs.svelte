@@ -50,8 +50,11 @@
 
 <style>
   .c-tabs-nav {
-    background: #08090b;
-    border-bottom: 1px solid #272a30;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease;
   }
   .c-tabs-container {
     display: flex;
@@ -93,7 +96,7 @@
     background: transparent;
     border: none;
     border-bottom: 2px solid transparent;
-    color: #9da2ab;
+    color: var(--text-muted);
     font-size: 0.8rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -103,19 +106,19 @@
     transition: all 0.15s ease;
   }
   .c-tab-btn:hover {
-    color: #f6f6f6;
+    color: var(--text-main);
   }
   .c-tab-btn.active {
-    color: #f2b84b;
-    border-bottom-color: #f2b84b;
+    color: var(--theme-dark);
+    border-bottom-color: var(--theme-dark);
     font-weight: 700;
   }
   .c-tab-badge {
-    background: #1e1910;
-    border: 1px solid #5a4524;
+    background: var(--status-amber-bg);
+    border: 1px solid var(--status-amber-border);
     padding: 1px 6px;
     border-radius: 3px;
     font-size: 0.7rem;
-    color: #ffd27d;
+    color: var(--status-amber-text);
   }
 </style>

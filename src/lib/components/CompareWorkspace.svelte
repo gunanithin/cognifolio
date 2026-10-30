@@ -565,7 +565,7 @@
 
   .compare-header-card {
     padding: 24px;
-    background: #121419;
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     margin-bottom: 24px;
@@ -603,7 +603,7 @@
   }
 
   .compare-doc-select-box {
-    background: #14171d;
+    background: var(--bg-subtle);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     padding: 16px;
@@ -630,8 +630,9 @@
     font-family: var(--font-mono);
     padding: 2px 8px;
     border-radius: 3px;
-    background: #20242e;
-    color: #f6f6f6;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
   }
 
   .role-hint {
@@ -641,7 +642,7 @@
 
   .selector-select-wrapper select {
     width: 100%;
-    background: #121419;
+    background: var(--bg-card);
     color: var(--text-main);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
@@ -698,7 +699,7 @@
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background: #161922;
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     color: var(--text-main);
     cursor: pointer;
@@ -710,9 +711,9 @@
   }
 
   .swap-docs-btn:hover {
-    background: #f2b84b;
-    color: #08090b;
-    border-color: #f2b84b;
+    background: var(--theme-dark);
+    color: #16120a;
+    border-color: var(--theme-dark);
   }
 
   .vs-divider {
@@ -727,7 +728,7 @@
     align-items: center;
     gap: 20px;
     padding: 20px 24px;
-    background: #121419;
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     margin-bottom: 20px;
@@ -777,31 +778,31 @@
   }
 
   .risk-badge.increased {
-    background: #2a1215;
-    color: #f87171;
-    border: 1px solid #632025;
+    background: var(--status-rose-bg);
+    color: var(--status-rose-text);
+    border: 1px solid var(--status-rose-border);
   }
 
   .risk-badge.decreased {
-    background: #12281e;
-    color: #67d8a2;
-    border: 1px solid #1e5a40;
+    background: var(--status-emerald-bg);
+    color: var(--status-emerald-text);
+    border: 1px solid var(--status-emerald-border);
   }
 
   .risk-badge.neutral {
-    background: #261c0e;
-    color: #f2b84b;
-    border: 1px solid #5a4524;
+    background: var(--status-amber-bg);
+    color: var(--status-amber-text);
+    border: 1px solid var(--status-amber-border);
   }
 
   .financial-delta-badge {
     font-size: 0.75rem;
     font-family: var(--font-mono);
-    color: #67d8a2;
-    background: #12281e;
+    color: var(--status-emerald-text);
+    background: var(--status-emerald-bg);
     padding: 2px 8px;
     border-radius: 3px;
-    border: 1px solid #1e5a40;
+    border: 1px solid var(--status-emerald-border);
   }
 
   .verdict-text {
@@ -813,7 +814,7 @@
   .similarity-circle-box {
     text-align: center;
     padding: 10px 16px;
-    background: #14171d;
+    background: var(--bg-subtle);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
   }
@@ -822,7 +823,7 @@
     font-size: 1.6rem;
     font-weight: 700;
     font-family: var(--font-mono);
-    color: #f2b84b;
+    color: var(--theme-dark);
   }
 
   .sim-label {
@@ -841,7 +842,7 @@
 
   .metric-card {
     padding: 16px 20px;
-    background: #121419;
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
   }
@@ -882,7 +883,7 @@
 
   .recommendations-card {
     padding: 20px 24px;
-    background: #121419;
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     margin-bottom: 20px;
@@ -927,7 +928,7 @@
   }
 
   .redlines-container-card {
-    background: #121419;
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     padding: 20px 24px;
@@ -953,7 +954,7 @@
   .count-badge {
     font-size: 0.72rem;
     padding: 2px 7px;
-    background: #161922;
+    background: var(--bg-subtle);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     color: var(--text-muted);
@@ -971,7 +972,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    background: #14171d;
+    background: var(--bg-subtle);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     padding: 6px 10px;
@@ -991,7 +992,7 @@
   }
 
   .filter-pill {
-    background: #14171d;
+    background: var(--bg-subtle);
     border: 1px solid var(--border-color);
     color: var(--text-muted);
     font-size: 0.72rem;
@@ -1002,9 +1003,9 @@
   }
 
   .filter-pill.active {
-    background: #f2b84b;
-    border-color: #f2b84b;
-    color: #08090b;
+    background: var(--theme-dark);
+    border-color: var(--theme-dark);
+    color: #16120a;
     font-weight: 600;
   }
 
@@ -1015,7 +1016,7 @@
   }
 
   .diff-card {
-    background: #14171d;
+    background: var(--bg-subtle);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     padding: 16px 20px;
@@ -1057,28 +1058,29 @@
   }
 
   .diff-type-badge.added {
-    background: #12281e;
-    color: #67d8a2;
-    border: 1px solid #1e5a40;
+    background: var(--status-emerald-bg);
+    color: var(--status-emerald-text);
+    border: 1px solid var(--status-emerald-border);
   }
 
   .diff-type-badge.removed {
-    background: #2a1215;
-    color: #f87171;
-    border: 1px solid #632025;
+    background: var(--status-rose-bg);
+    color: var(--status-rose-text);
+    border: 1px solid var(--status-rose-border);
   }
 
   .diff-type-badge.modified {
-    background: #261c0e;
-    color: #f2b84b;
-    border: 1px solid #5a4524;
+    background: var(--status-amber-bg);
+    color: var(--status-amber-text);
+    border: 1px solid var(--status-amber-border);
   }
 
   .diff-cat-badge {
     font-size: 0.68rem;
     padding: 2px 6px;
-    background: #18192c;
-    color: #a5b4fc;
+    background: var(--status-indigo-bg);
+    color: var(--status-indigo-text);
+    border: 1px solid var(--status-indigo-border);
     border-radius: 3px;
   }
 
@@ -1095,7 +1097,7 @@
     font-family: var(--font-mono);
     padding: 2px 6px;
     border-radius: 3px;
-    background: #161922;
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     color: var(--text-muted);
   }
@@ -1133,15 +1135,15 @@
   }
 
   .box-del {
-    background: #2a1215;
-    border: 1px solid #632025;
-    color: #f87171;
+    background: var(--status-rose-bg);
+    border: 1px solid var(--status-rose-border);
+    color: var(--status-rose-text);
   }
 
   .box-add {
-    background: #12281e;
-    border: 1px solid #1e5a40;
-    color: #67d8a2;
+    background: var(--status-emerald-bg);
+    border: 1px solid var(--status-emerald-border);
+    color: var(--status-emerald-text);
   }
 
   .redline-box-title {
@@ -1171,7 +1173,7 @@
   .compare-empty-card {
     text-align: center;
     padding: 60px 20px;
-    background: #121419;
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
   }
@@ -1204,9 +1206,9 @@
   }
 
   .chip-btn {
-    background: #161922;
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
-    color: #f6f6f6;
+    color: var(--text-main);
     padding: 6px 14px;
     border-radius: var(--radius-sm);
     cursor: pointer;
@@ -1216,9 +1218,9 @@
   }
 
   .chip-btn:hover {
-    background: #f2b84b;
-    color: #08090b;
-    border-color: #f2b84b;
+    background: var(--theme-dark);
+    color: #16120a;
+    border-color: var(--theme-dark);
   }
 
   .pagination-bar {
@@ -1228,11 +1230,11 @@
     flex-wrap: wrap;
     gap: 12px;
     padding: 10px 16px;
-    background: #14171d;
+    background: var(--bg-subtle);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     font-size: 0.82rem;
-    color: #9da2ab;
+    color: var(--text-muted);
   }
 
   .pagination-info {
@@ -1253,18 +1255,18 @@
     padding: 5px 12px;
     font-size: 0.78rem;
     font-weight: 600;
-    color: #f6f6f6;
-    background: #161922;
-    border: 1px solid #2b2e35;
+    color: var(--text-main);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     cursor: pointer;
     transition: all 0.15s ease;
   }
 
   .pagination-btn:hover:not(:disabled) {
-    background: #20242e;
-    color: #f2b84b;
-    border-color: #f2b84b;
+    background: var(--bg-card-hover);
+    color: var(--theme-dark-hover);
+    border-color: var(--theme-dark);
   }
 
   .pagination-btn:disabled {

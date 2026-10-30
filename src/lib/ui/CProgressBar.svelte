@@ -10,7 +10,7 @@
 {#if $progress.visible}
   <!-- Ambient Top Edge Golden Perimeter Beacon -->
   <div
-    class="fixed top-0 left-0 right-0 z-[99999] pointer-events-none overflow-hidden bg-black/40"
+    class="fixed top-0 left-0 right-0 z-[99999] pointer-events-none overflow-hidden top-perimeter-track"
     style="height: {height};"
     aria-hidden="true"
   >
@@ -27,7 +27,7 @@
   <!-- Centered Luxury Editorial Loading Screen & Activity Console -->
   {#if showBadge && $progress.isLoading}
     <div
-      class="fixed inset-0 z-[99998] pointer-events-none flex items-center justify-center p-5 bg-black/55 backdrop-blur-[5px]"
+      class="fixed inset-0 z-[99998] pointer-events-none flex items-center justify-center p-5 loading-screen-backdrop"
       transition:fade={{ duration: 180 }}
       role="progressbar"
       aria-valuenow={$progress.progress}
@@ -92,6 +92,28 @@
 {/if}
 
 <style>
+  /* Top Perimeter Beacon Track */
+  .top-perimeter-track {
+    background: rgba(15, 23, 42, 0.08);
+  }
+
+  :global([data-theme='dark']) .top-perimeter-track {
+    background: rgba(0, 0, 0, 0.4);
+  }
+
+  /* Screen Backdrop */
+  .loading-screen-backdrop {
+    background: rgba(15, 23, 42, 0.28);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  :global([data-theme='dark']) .loading-screen-backdrop {
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
   /* Ambient Top Edge Fill */
   .top-perimeter-fill {
     background: linear-gradient(90deg, #ca8a04 0%, #f2b84b 50%, #fde047 100%);
@@ -106,20 +128,32 @@
     position: relative;
     width: 100%;
     max-width: 440px;
-    background: rgba(12, 13, 17, 0.94);
-    border: 1px solid rgba(242, 184, 75, 0.28);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
     border-radius: 14px;
     padding: 32px 28px 24px;
     display: flex;
     flex-direction: column;
     align-items: center;
     box-shadow:
-      0 30px 80px rgba(0, 0, 0, 0.9),
-      0 0 50px rgba(242, 184, 75, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      0 20px 60px rgba(15, 23, 42, 0.12),
+      0 0 40px rgba(242, 184, 75, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
     overflow: hidden;
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease;
+  }
+
+  :global([data-theme='dark']) .centered-loading-card {
+    background: rgba(18, 20, 25, 0.94);
+    border-color: rgba(242, 184, 75, 0.28);
+    box-shadow:
+      0 30px 80px rgba(0, 0, 0, 0.9),
+      0 0 50px rgba(242, 184, 75, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
 
   /* Ambient Gold Halo */
@@ -157,12 +191,18 @@
     height: 50px;
     border-radius: 12px;
     overflow: hidden;
-    background: #111318;
-    border: 1px solid rgba(242, 184, 75, 0.35);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  :global([data-theme='dark']) .emblem-frame {
+    background: #111318;
+    border-color: rgba(242, 184, 75, 0.35);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
   }
 
   .brand-emblem-img {
@@ -197,7 +237,7 @@
     width: 10px;
     height: 10px;
     background: #10b981;
-    border: 2px solid #0c0d11;
+    border: 2px solid var(--bg-card);
     border-radius: 50%;
     box-shadow: 0 0 8px rgba(16, 185, 129, 0.8);
   }
@@ -209,8 +249,8 @@
     gap: 7px;
     padding: 3px 10px;
     border-radius: 9999px;
-    background: rgba(242, 184, 75, 0.08);
-    border: 1px solid rgba(242, 184, 75, 0.22);
+    background: var(--status-amber-bg);
+    border: 1px solid var(--status-amber-border);
     margin-bottom: 12px;
     z-index: 1;
   }
@@ -228,7 +268,7 @@
     font-family: var(--font-mono, 'JetBrains Mono', monospace);
     font-size: 0.65rem;
     font-weight: 700;
-    color: #f2b84b;
+    color: var(--status-amber-text);
     letter-spacing: 0.1em;
   }
 
@@ -244,7 +284,7 @@
     font-family: var(--font-heading, 'Playfair Display', Georgia, serif);
     font-size: 1.15rem;
     font-weight: 600;
-    color: #ffffff;
+    color: var(--text-main);
     margin: 0;
     line-height: 1.35;
     letter-spacing: -0.01em;
@@ -260,11 +300,16 @@
   .progress-track {
     width: 100%;
     height: 6px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--bg-subtle);
+    border: 1px solid var(--border-color);
     border-radius: 9999px;
     overflow: hidden;
     position: relative;
+  }
+
+  :global([data-theme='dark']) .progress-track {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.08);
   }
 
   .amber-progress-fill {
@@ -298,7 +343,7 @@
     align-items: center;
     justify-content: space-between;
     font-size: 0.72rem;
-    color: #717682;
+    color: var(--text-muted);
     font-family: var(--font-mono, 'JetBrains Mono', monospace);
     z-index: 1;
   }
@@ -310,30 +355,30 @@
   }
 
   .stamp-chip {
-    color: #10b981;
+    color: var(--status-emerald-text);
     font-weight: 700;
   }
 
   .stamp-sep {
-    color: #3b3f49;
+    color: var(--border-dark);
   }
 
   .stamp-mode {
-    color: #8c929e;
+    color: var(--text-muted);
   }
 
   .percent-badge {
     display: flex;
     align-items: baseline;
     font-weight: 800;
-    color: #f2b84b;
+    color: var(--theme-dark);
     font-size: 0.85rem;
   }
 
   .percent-symbol {
     font-size: 0.7rem;
     margin-left: 1px;
-    color: #ca8a04;
+    color: var(--color-gold);
   }
 
   /* Keyframe Animations */

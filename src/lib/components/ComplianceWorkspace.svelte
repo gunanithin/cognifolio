@@ -117,7 +117,7 @@
         <CIcon name="document" size={15} />
         <span>Export JSON</span>
       </CButton>
-      <CButton variant="primary" loading={isLoadingCompliance} on:click={handleRefresh}>
+      <CButton variant="secondary" loading={isLoadingCompliance} on:click={handleRefresh}>
         <CIcon name="refresh" size={15} />
         <span>Refresh</span>
       </CButton>
@@ -445,7 +445,7 @@
     grid-template-columns: 1fr auto 1fr auto 1fr;
     gap: 16px;
     padding: 18px 24px;
-    background: #121419;
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     margin-bottom: 20px;
@@ -491,7 +491,7 @@
   }
 
   .guardrails-strip {
-    background: #121419;
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     padding: 14px 18px;
@@ -527,7 +527,7 @@
     align-items: center;
     gap: 6px;
     padding: 4px 10px;
-    background: #161922;
+    background: var(--bg-subtle);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     font-size: 0.78rem;
@@ -538,12 +538,12 @@
   }
 
   .chip-count {
-    color: #f2b84b;
+    color: var(--theme-dark);
     font-weight: 700;
   }
 
   .audit-ledger-card {
-    background: #121419;
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     overflow: hidden;
@@ -558,14 +558,14 @@
     gap: 12px;
     padding: 14px 18px;
     border-bottom: 1px solid var(--border-color);
-    background: #14171d;
+    background: var(--bg-subtle);
   }
 
   .audit-search-box {
     display: flex;
     align-items: center;
     gap: 8px;
-    background: #121419;
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     padding: 6px 12px;
@@ -588,7 +588,7 @@
   }
 
   .audit-pill {
-    background: #161922;
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     color: var(--text-muted);
     font-size: 0.75rem;
@@ -600,14 +600,15 @@
   }
 
   .audit-pill:hover {
-    background: #20242e;
+    background: var(--bg-card-hover);
     color: var(--text-main);
+    border-color: var(--border-dark);
   }
 
   .audit-pill.active {
-    background: #f2b84b;
-    border-color: #f2b84b;
-    color: #08090b;
+    background: var(--theme-dark);
+    border-color: var(--theme-dark);
+    color: #16120a;
   }
 
   .audit-table-wrap {
@@ -623,7 +624,7 @@
   .audit-table th {
     text-align: left;
     padding: 10px 16px;
-    background: #14171d;
+    background: var(--bg-subtle);
     color: var(--text-muted);
     font-size: 0.72rem;
     text-transform: uppercase;
@@ -633,12 +634,12 @@
 
   .audit-table td {
     padding: 12px 16px;
-    border-bottom: 1px solid #1a1e26;
+    border-bottom: 1px solid var(--border-color);
     color: var(--text-main);
   }
 
   .audit-table tbody tr:hover {
-    background: #161922;
+    background: var(--bg-card-hover);
   }
 
   .action-tag {
@@ -650,27 +651,45 @@
   }
 
   .action-tag.tag-uploaded {
-    background: #12281e;
-    color: #67d8a2;
-    border: 1px solid #1e5a40;
+    background: var(--status-emerald-bg);
+    color: var(--status-emerald-text);
+    border: 1px solid var(--status-emerald-border);
   }
 
   .action-tag.tag-redacted {
-    background: #2a1215;
-    color: #f87171;
-    border: 1px solid #632025;
+    background: var(--status-rose-bg);
+    color: var(--status-rose-text);
+    border: 1px solid var(--status-rose-border);
   }
 
   .action-tag.tag-deleted {
-    background: #281014;
-    color: #ef4444;
-    border: 1px solid #551d24;
+    background: var(--status-rose-bg);
+    color: var(--status-rose-text);
+    border: 1px solid var(--status-rose-border);
   }
 
   .action-tag.tag-exported {
-    background: #18192c;
-    color: #a5b4fc;
-    border: 1px solid #323564;
+    background: var(--status-indigo-bg);
+    color: var(--status-indigo-text);
+    border: 1px solid var(--status-indigo-border);
+  }
+
+  .action-tag.tag-searched {
+    background: var(--status-slate-bg);
+    color: var(--status-slate-text);
+    border: 1px solid var(--status-slate-border);
+  }
+
+  .action-tag.tag-viewed {
+    background: var(--status-amber-bg);
+    color: var(--status-amber-text);
+    border: 1px solid var(--status-amber-border);
+  }
+
+  .action-tag.tag-generic {
+    background: var(--bg-subtle);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
   }
 
   .verify-badge {
@@ -679,11 +698,11 @@
     gap: 4px;
     font-size: 0.68rem;
     font-family: var(--font-mono);
-    color: #67d8a2;
-    background: #12281e;
+    color: var(--status-emerald-text);
+    background: var(--status-emerald-bg);
     padding: 2px 6px;
     border-radius: 3px;
-    border: 1px solid #1e5a40;
+    border: 1px solid var(--status-emerald-border);
   }
 
   .compliance-footer-grid {
@@ -694,7 +713,7 @@
 
   .governance-card,
   .retention-card {
-    background: #121419;
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     padding: 16px 20px;
@@ -730,7 +749,7 @@
   .gov-pill {
     font-size: 0.76rem;
     color: var(--text-muted);
-    background: #161922;
+    background: var(--bg-subtle);
     border: 1px solid var(--border-color);
     padding: 3px 8px;
     border-radius: 4px;
@@ -740,14 +759,14 @@
   }
 
   .gov-pill .check {
-    color: #67d8a2;
+    color: var(--status-emerald-text);
     font-weight: bold;
   }
 
   .purge-btn {
-    background: #2a1215;
-    color: #f87171;
-    border: 1px solid #632025;
+    background: var(--status-rose-bg);
+    color: var(--status-rose-text);
+    border: 1px solid var(--status-rose-border);
     padding: 8px 16px;
     border-radius: var(--radius-sm);
     font-size: 0.8rem;
@@ -768,10 +787,10 @@
     flex-wrap: wrap;
     gap: 12px;
     padding: 10px 16px;
-    background: #14171d;
+    background: var(--bg-subtle);
     border-top: 1px solid var(--border-color);
     font-size: 0.82rem;
-    color: #9da2ab;
+    color: var(--text-muted);
   }
 
   .pagination-info {
@@ -792,18 +811,18 @@
     padding: 5px 12px;
     font-size: 0.78rem;
     font-weight: 600;
-    color: #f6f6f6;
-    background: #161922;
-    border: 1px solid #2b2e35;
+    color: var(--text-main);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     cursor: pointer;
     transition: all 0.15s ease;
   }
 
   .pagination-btn:hover:not(:disabled) {
-    background: #20242e;
-    color: #f2b84b;
-    border-color: #f2b84b;
+    background: var(--bg-card-hover);
+    color: var(--theme-dark-hover);
+    border-color: var(--theme-dark);
   }
 
   .pagination-btn:disabled {

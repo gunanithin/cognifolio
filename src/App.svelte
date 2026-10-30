@@ -29,6 +29,7 @@
   import CProgressBar from './lib/ui/CProgressBar.svelte';
   import CIcon from './lib/icons/CIcon.svelte';
   import { progress } from './lib/stores/progress.js';
+  import { theme } from './lib/stores/theme.js';
 
   import AppHeader from './lib/components/AppHeader.svelte';
   import AppFooter from './lib/components/AppFooter.svelte';
@@ -344,6 +345,7 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
   });
 
   onMount(async () => {
+    theme.init();
     cleanupRouter = router.init();
     currentUser = getCurrentUser();
 
@@ -1153,8 +1155,8 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    background-color: var(--bg-primary, #08090b);
-    color: var(--text-main, #f6f6f6);
+    background-color: var(--bg-primary);
+    color: var(--text-main);
     position: relative;
     padding-bottom: 60px; /* Offset for fixed unified footer */
   }
@@ -1202,7 +1204,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     position: relative;
     overflow: hidden;
     width: 100%;
-    background: rgba(12, 14, 18, 0.94);
+    background: var(--bg-card);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-radius: 12px;
@@ -1210,23 +1212,16 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     display: flex;
     align-items: flex-start;
     gap: 12px;
+    box-shadow: var(--shadow-elevated);
     animation: toastSlideDown 0.28s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .cognifolio-toast.toast-success {
-    border: 1px solid rgba(202, 138, 4, 0.28);
-    box-shadow:
-      0 18px 42px -6px rgba(0, 0, 0, 0.65),
-      0 0 0 1px rgba(202, 138, 4, 0.15),
-      0 0 24px -2px rgba(16, 185, 129, 0.12);
+    border: 1px solid var(--status-emerald-border);
   }
 
   .cognifolio-toast.toast-error {
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    box-shadow:
-      0 18px 42px -6px rgba(0, 0, 0, 0.65),
-      0 0 0 1px rgba(239, 68, 68, 0.18),
-      0 0 24px -2px rgba(239, 68, 68, 0.15);
+    border: 1px solid var(--status-rose-border);
   }
 
   .toast-indicator {
@@ -1295,7 +1290,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
     font-size: 0.85rem;
     line-height: 1.45;
-    color: #f3f4f6;
+    color: var(--text-main);
     font-weight: 450;
     word-break: break-word;
   }
@@ -1303,7 +1298,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
   .toast-close-btn {
     background: transparent;
     border: none;
-    color: #9ca3af;
+    color: var(--text-muted);
     width: 26px;
     height: 26px;
     border-radius: 6px;
@@ -1318,8 +1313,8 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
   }
 
   .toast-close-btn:hover {
-    color: #ffffff;
-    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-main);
+    background: var(--bg-card-hover);
   }
 
   .toast-progress-bar {
@@ -1328,7 +1323,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
     left: 0;
     right: 0;
     height: 2px;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--border-color);
     overflow: hidden;
   }
 
