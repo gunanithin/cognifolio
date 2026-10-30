@@ -201,6 +201,9 @@
             {#if currentUser && !currentUser.is_guest}
               <button class="menu-item-btn" on:click={handleLogout}>Sign Out</button>
             {:else}
+              {#if currentUser?.is_guest}
+                <button class="menu-item-btn" on:click={handleLogout}>Reset Guest Session</button>
+              {/if}
               <button class="menu-item-btn" on:click={() => openAuth('signin')}
                 >Sign In to Save Vault</button
               >

@@ -79,6 +79,13 @@
     dispatch('upload');
   }
 
+  function handleDropFile(e) {
+    const file = e.dataTransfer?.files?.[0];
+    if (file) {
+      dispatch('uploadFile', { file });
+    }
+  }
+
   function handleSampleClick(sample) {
     dispatch('uploadSample', { sample });
   }
@@ -169,6 +176,8 @@
       tabindex="0"
       on:click={handleUploadClick}
       on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleUploadClick()}
+      on:dragover|preventDefault
+      on:drop|preventDefault={handleDropFile}
     >
       <div class="dropzone-inner">
         <div class="dropzone-left-group">
