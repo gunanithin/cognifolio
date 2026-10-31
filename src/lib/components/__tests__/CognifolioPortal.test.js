@@ -24,10 +24,16 @@ describe('CognifolioPortal Component Tests', () => {
     // Verify Actions & Trust Indicators
     expect(html).toContain('Explore Cognifolio →');
     expect(html).toContain('Upload Document');
-    expect(html).toContain('Pricing &amp; Limits');
+    expect(html).not.toContain('Pricing &amp; Limits');
     expect(html).toContain('Source-grounded answers');
     expect(html).toContain('Privacy-first analysis');
     expect(html).toContain('PDF · DOCX · Images');
+
+    // Verify High-Intent SEO Content & Sections
+    expect(html).toContain('Analyse Any PDF with AI.');
+    expect(html).toContain('Engineered for every document format.');
+    expect(html).toContain('FREQUENTLY ASKED QUESTIONS');
+    expect(html).toContain('How does Cognifolio analyse PDF documents with AI?');
 
     // Verify Content Sections
     expect(html).toContain('More than a document viewer.');
@@ -64,5 +70,17 @@ describe('CognifolioPortal Component Tests', () => {
     expect(html).toContain('ACTIVE VAULT:');
     expect(html).toContain('Supplier_Contract_2026.pdf');
     expect(html).toContain('Q3_Financial_Model.xlsx');
+  });
+
+  it('renders Pricing & Limits when showPricing is true', () => {
+    const { html } = render(CognifolioPortal, {
+      props: {
+        documents: [],
+        currentUser: null,
+        showPricing: true,
+      },
+    });
+
+    expect(html).toContain('Pricing &amp; Limits');
   });
 });
