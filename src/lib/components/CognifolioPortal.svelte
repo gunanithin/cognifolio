@@ -7,6 +7,47 @@
   export let currentUser = null;
   export let showHeader = true;
   export let showFooter = true;
+  export let showPricing = false;
+
+  let activeFaqIndex = null;
+  function toggleFaq(index) {
+    activeFaqIndex = activeFaqIndex === index ? null : index;
+  }
+
+  const faqItems = [
+    {
+      q: 'How does Cognifolio analyse PDF documents with AI?',
+      a: 'Cognifolio pairs multimodal vision models with high-precision text and table extraction. When you upload a file, it identifies structural elements like headers, financial line items, and risk clauses. When you ask questions, answers are directly grounded with visual coordinate page citations highlighting the exact text on screen.',
+    },
+    {
+      q: 'Is it completely free to analyse PDFs on Cognifolio?',
+      a: 'Yes! Cognifolio is 100% free during its public beta. You can upload documents, chat with PDFs, extract financial tables, and compare contract versions with zero paywalls, credit cards, or hidden limits.',
+    },
+    {
+      q: 'Can Cognifolio extract complex financial tables and balance sheets from PDFs?',
+      a: 'Yes. Cognifolio features high-accuracy financial table parsing. It extracts multi-column balance sheets, cash flows, and 10-K tables, allowing you to view and interact with data in a spreadsheet grid with sticky headers and live row filtering.',
+    },
+    {
+      q: 'How does Chat with PDF work without hallucinations?',
+      a: 'Cognifolio implements strict source-grounded neural retrieval. Every AI statement is anchored to specific page numbers and bounding box coordinates. Clicking any citation jumps directly to that passage in the document viewer, giving you full auditability.',
+    },
+    {
+      q: 'Can I compare two versions of a contract or agreement?',
+      a: 'Yes. Using the Compare workspace, upload both versions of an agreement. Cognifolio’s redline diff engine performs semantic clause-by-clause comparison, highlighting added terms, removed obligations, and risk level variations.',
+    },
+    {
+      q: 'Is my document confidential and secure during AI analysis?',
+      a: 'Security is paramount. Cognifolio enforces zero-trust data isolation. Sensitive personal information (PII) like salaries, bank details, and personal IDs is masked on the server before AI processing. Uploads are strictly siloed to your own session with zero cross-user leakage.',
+    },
+    {
+      q: 'Can I redact sensitive personal information (PII) before sharing a PDF?',
+      a: 'Yes. Cognifolio’s AI automatically detects PII entities (names, SSNs, credit card numbers, emails) and lets you download physically redacted PDFs with permanent black bounding box overlays suitable for regulatory filing and compliance.',
+    },
+    {
+      q: 'What document formats are supported besides PDF?',
+      a: 'Cognifolio is a multi-format document canvas. In addition to PDFs (.pdf), it natively parses Microsoft Word (.docx, .doc), Excel spreadsheets (.xlsx, .xls, .csv), and image scans (.png, .jpg, .jpeg, .webp) with multimodal OCR.',
+    },
+  ];
 
   const dispatch = createEventDispatcher();
 
@@ -75,16 +116,17 @@
     <section class="hero" id="product">
       <div class="wrap grid">
         <div class="hero-content">
-          <div class="eyebrow">✦ &nbsp; AI DOCUMENT INTELLIGENCE</div>
+          <div class="eyebrow">✦ &nbsp; AI DOCUMENT INTELLIGENCE · FREE AI PDF ANALYZER</div>
 
           <h1 class="hero-title">
-            Turn documents<br />
-            into <em>decisions.</em>
+            Analyse Any PDF with AI.<br />
+            Turn documents into <em>decisions.</em>
           </h1>
 
           <p class="lead">
-            Upload any PDF, contract, or image. Extract meaning, uncover risks, protect sensitive
-            information, and ask questions grounded in your documents.
+            Upload any PDF, contract, or image. Analyze financial statements, chat with documents
+            with visual AI citations, extract tables, uncover legal risks, and auto-redact sensitive
+            personal information in seconds.
           </p>
 
           <div class="actions">
@@ -95,9 +137,11 @@
               <CIcon name="upload" size={16} />
               <span>Upload Document</span>
             </button>
-            <button type="button" class="btn ghost" on:click={openPricing}>
-              Pricing &amp; Limits
-            </button>
+            {#if showPricing}
+              <button type="button" class="btn ghost" on:click={openPricing}>
+                Pricing &amp; Limits
+              </button>
+            {/if}
           </div>
 
           <div class="trust">
@@ -312,6 +356,135 @@
       </div>
     </section>
 
+    <!-- Use Cases & Formats Section (High-Intent Topical Clusters) -->
+    <section class="content" id="use-cases">
+      <div class="wrap">
+        <div class="kicker">DESIGNED FOR HIGH-STAKES ACCURACY</div>
+        <h2>Engineered for every document format.</h2>
+        <p class="intro">
+          Whether parsing quarterly earnings, comparing commercial leases, or analyzing scanned invoices, Cognifolio brings clarity to your workflow.
+        </p>
+
+        <div class="cards">
+          <div
+            class="card"
+            role="button"
+            tabindex="0"
+            on:click={() => launchStudio('dashboard')}
+            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && launchStudio('dashboard')}
+          >
+            <div class="icon">📊</div>
+            <h3>Financial Statements &amp; 10-K Audits</h3>
+            <p>
+              Instantly parse balance sheets, cash flows, and SEC filings. Query metrics and export clean table structures without manual re-keying.
+            </p>
+          </div>
+
+          <div
+            class="card"
+            role="button"
+            tabindex="0"
+            on:click={() => launchStudio('compare')}
+            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && launchStudio('compare')}
+          >
+            <div class="icon">⚖️</div>
+            <h3>Legal Contracts &amp; Redline Diff</h3>
+            <p>
+              Compare agreements side-by-side. Uncover hidden indemnities, termination clause modifications, and governing law shifts.
+            </p>
+          </div>
+
+          <div
+            class="card"
+            role="button"
+            tabindex="0"
+            on:click={() => launchStudio('viewer')}
+            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && launchStudio('viewer')}
+          >
+            <div class="icon">📑</div>
+            <h3>Spreadsheets &amp; Data Grids</h3>
+            <p>
+              Upload XLSX and CSV models. Switch between sheets, filter rows in real-time, and get AI answers contextualized by spreadsheet coordinates.
+            </p>
+          </div>
+
+          <div
+            class="card"
+            role="button"
+            tabindex="0"
+            on:click={() => launchStudio('upload')}
+            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && launchStudio('upload')}
+          >
+            <div class="icon">📷</div>
+            <h3>Scanned Receipts &amp; OCR Images</h3>
+            <p>
+              Transform low-resolution photos and scanned paper receipts into crisp, searchable digital records with multimodal OCR.
+            </p>
+          </div>
+
+          <div
+            class="card"
+            role="button"
+            tabindex="0"
+            on:click={openSecurityGuide}
+            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && openSecurityGuide()}
+          >
+            <div class="icon">🛡️</div>
+            <h3>Audit-Ready PII Redaction</h3>
+            <p>
+              Automatically identify PII across legal documents and produce permanently redacted PDFs with verifiable black overlays.
+            </p>
+          </div>
+
+          <div
+            class="card"
+            role="button"
+            tabindex="0"
+            on:click={() => launchStudio('search')}
+            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && launchStudio('search')}
+          >
+            <div class="icon">⚡</div>
+            <h3>Sub-Second Portfolio Search</h3>
+            <p>
+              Search across thousands of document pages simultaneously with semantic vector retrieval that understands intent, not just keywords.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interactive FAQ Section (Targeting High-Intent Google Search Queries) -->
+    <section class="content" id="faq">
+      <div class="wrap">
+        <div class="kicker">FREQUENTLY ASKED QUESTIONS</div>
+        <h2>Everything you need to know.</h2>
+        <p class="intro">
+          Learn how Cognifolio uses AI to analyse PDFs, protect your data, and deliver visual citations.
+        </p>
+
+        <div class="faq-list">
+          {#each faqItems as item, idx}
+            <div class="faq-item {activeFaqIndex === idx ? 'open' : ''}">
+              <button
+                type="button"
+                class="faq-question-btn"
+                on:click={() => toggleFaq(idx)}
+                aria-expanded={activeFaqIndex === idx}
+              >
+                <span class="faq-question-text">{item.q}</span>
+                <span class="faq-toggle-icon">{activeFaqIndex === idx ? '−' : '+'}</span>
+              </button>
+              {#if activeFaqIndex === idx}
+                <div class="faq-answer-panel">
+                  <p class="faq-answer-text">{item.a}</p>
+                </div>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      </div>
+    </section>
+
     <!-- Commercial Call-To-Action Banner -->
     <section class="content" id="start">
       <div class="wrap">
@@ -347,10 +520,12 @@
           <button type="button" class="footer-link-btn" on:click={openSecurityGuide}
             >Privacy &amp; Protection</button
           >
-          <span class="foot-dot">&bull;</span>
-          <button type="button" class="footer-link-btn" on:click={openPricing}
-            >Pricing &amp; Limits</button
-          >
+          {#if showPricing}
+            <span class="foot-dot">&bull;</span>
+            <button type="button" class="footer-link-btn" on:click={openPricing}
+              >Pricing &amp; Limits</button
+            >
+          {/if}
           <span class="foot-dot">&bull;</span>
           <a href="mailto:contact@morrowless.io" class="footer-link-btn">contact@morrowless.io</a>
         </div>
@@ -870,6 +1045,79 @@
 
   .foot-dot {
     color: var(--border-dark);
+  }
+
+  /* FAQ Accordion */
+  .faq-list {
+    margin-top: 36px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .faq-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+  }
+
+  .faq-item.open {
+    border-color: var(--theme-dark);
+    box-shadow: var(--shadow-card);
+  }
+
+  .faq-question-btn {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    color: var(--text-main);
+    font-size: 16px;
+    font-weight: 700;
+    transition: color 0.15s ease;
+  }
+
+  .faq-question-btn:hover {
+    color: var(--amber);
+  }
+
+  .faq-toggle-icon {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--amber);
+    margin-left: 16px;
+    flex-shrink: 0;
+  }
+
+  .faq-answer-panel {
+    padding: 0 24px 22px;
+    border-top: 1px solid var(--border-color);
+    animation: faqSlideDown 0.2s ease-out;
+  }
+
+  @keyframes faqSlideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .faq-answer-text {
+    margin: 16px 0 0;
+    color: var(--muted);
+    font-size: 14.5px;
+    line-height: 1.7;
   }
 
   /* Responsive Breakpoints */
