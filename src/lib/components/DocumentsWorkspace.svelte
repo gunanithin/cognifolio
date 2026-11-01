@@ -69,7 +69,8 @@
     if (t === 'pdf') return { label: 'PDF', badgeClass: 'badge-rose' };
     if (t === 'xlsx' || t === 'xls') return { label: 'XLSX', badgeClass: 'badge-emerald' };
     if (t === 'csv') return { label: 'CSV', badgeClass: 'badge-emerald' };
-    if (t === 'docx' || t === 'doc') return { label: 'DOCX', badgeClass: 'badge-indigo' };
+    if (t === 'docx') return { label: 'DOCX', badgeClass: 'badge-indigo' };
+    if (t === 'doc') return { label: 'DOC', badgeClass: 'badge-indigo' };
     if (['png', 'jpg', 'jpeg', 'webp'].includes(t))
       return { label: 'IMG', badgeClass: 'badge-amber' };
     return { label: t ? t.toUpperCase() : 'TXT', badgeClass: 'badge-slate' };
@@ -190,17 +191,17 @@
               <span class="browse-link">Browse files</span>
             </div>
             <div class="dropzone-hint">
-              Direct intake: PDF, Images (PNG, JPG, WEBP), Office &amp; Data (DOCX, XLSX, CSV), Text
-              (TXT, MD) up to 50MB
+              Direct intake: PDF, Images (PNG, JPG, WEBP), Office &amp; Data (DOCX, DOC, XLSX, CSV),
+              Text (TXT, MD) up to 50MB
             </div>
           </div>
         </div>
         <div class="dropzone-format-pills">
           <span class="fmt-tag fmt-pdf">PDF</span>
           <span class="fmt-tag fmt-excel">EXCEL / CSV</span>
-          <span class="fmt-tag fmt-word">DOCX</span>
+          <span class="fmt-tag fmt-word">DOCX / DOC</span>
           <span class="fmt-tag fmt-img">IMAGES</span>
-          <span class="fmt-tag fmt-txt">TXT</span>
+          <span class="fmt-tag fmt-txt">TXT / MD</span>
         </div>
       </div>
     </div>

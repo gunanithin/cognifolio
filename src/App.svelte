@@ -482,6 +482,29 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
       return;
     }
 
+    const ALLOWED_EXTS = [
+      'pdf',
+      'png',
+      'jpg',
+      'jpeg',
+      'webp',
+      'docx',
+      'doc',
+      'xlsx',
+      'xls',
+      'csv',
+      'txt',
+      'md',
+    ];
+    const fileName = fileToUpload.name || '';
+    const ext = (fileName.split('.').pop() || '').toLowerCase();
+    if (fileName.includes('.') && !ALLOWED_EXTS.includes(ext)) {
+      showError(
+        `Unsupported format (.${ext}). Supported formats: PDF, Word (DOCX, DOC), Excel/Data (XLSX, XLS, CSV), Images (PNG, JPG, WEBP), and Text (TXT, MD).`,
+      );
+      return;
+    }
+
     // Reset file input element values so selecting the same file triggers on:change
     const globalInput = document.getElementById('global-file-input');
     if (globalInput) globalInput.value = '';
@@ -962,7 +985,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
   <input
     type="file"
     id="global-file-input"
-    accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.doc,.xlsx,.xls,.csv,.txt,.md"
+    accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.doc,.xlsx,.xls,.csv,.txt,.md,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,text/markdown,image/png,image/jpeg,image/webp"
     on:change={(e) => handleFileUpload(e.target.files[0])}
     class="hidden"
   />
