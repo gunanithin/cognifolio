@@ -331,7 +331,8 @@ export async function fetchHealth() {
   }
 }
 
-export async function uploadDocument(file, retentionDays = 90) {
+export async function uploadDocument(file, retentionDays = 90, options = {}) {
+  const { skipProgress = true } = options;
   // Pre-flight check: ensure an active authenticated session exists before payload dispatch
   if (!getAuthToken()) {
     await startGuestSession();
@@ -344,6 +345,7 @@ export async function uploadDocument(file, retentionDays = 90) {
   let res = await authFetch('/documents/upload', {
     method: 'POST',
     body: formData,
+    skipProgress,
     progressMessage: 'Uploading & extracting document intelligence...',
   });
 
@@ -356,6 +358,7 @@ export async function uploadDocument(file, retentionDays = 90) {
       res = await authFetch('/documents/upload', {
         method: 'POST',
         body: formData,
+        skipProgress,
         progressMessage: 'Uploading & extracting document intelligence (refreshed session)...',
       });
     }
@@ -540,7 +543,7 @@ export async function chatWithDocument(docId, message, conversationHistory = [])
       message,
       conversation_history: conversationHistory,
     }),
-    progressMessage: 'Querying document intelligence...',
+    skipProgress: true,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
