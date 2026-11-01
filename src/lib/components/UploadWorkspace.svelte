@@ -69,7 +69,7 @@
         <input
           type="file"
           id="file-input"
-          accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.doc,.xlsx,.xls,.csv,.txt,.md,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,text/markdown,image/png,image/jpeg,image/webp"
+          accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp,.tiff,.svg,.docx,.doc,.rtf,.xlsx,.xls,.csv,.tsv,.txt,.md,.json,.xml,.yaml,.yml,.log,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/rtf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values,text/plain,text/markdown,application/json,text/xml,application/xml,image/png,image/jpeg,image/webp,image/gif,image/bmp,image/tiff,image/svg+xml"
           on:change={handleFileSelected}
           disabled={isUploading}
         />
@@ -90,15 +90,15 @@
           </div>
           <h3>Drag &amp; Drop documents here</h3>
           <p>
-            Supported formats: PDF, Images (PNG, JPG, WEBP), Office &amp; Data (DOCX, DOC, XLSX,
-            CSV), &amp; Text (TXT, MD) up to 50MB
+            Supported formats: PDF, Spreadsheets (XLSX, XLS, CSV, TSV), Office (DOCX, DOC, RTF),
+            Images (PNG, JPG, WEBP, GIF, SVG), &amp; Text/Data (TXT, MD, JSON, XML) up to 50MB
           </p>
           <div class="format-badge-row">
             <span class="fmt-pill fmt-pdf">PDF</span>
-            <span class="fmt-pill fmt-excel">XLSX / CSV</span>
-            <span class="fmt-pill fmt-word">DOCX / DOC</span>
-            <span class="fmt-pill fmt-img">PNG / JPG</span>
-            <span class="fmt-pill fmt-txt">TXT / MD</span>
+            <span class="fmt-pill fmt-excel">XLSX / CSV / TSV</span>
+            <span class="fmt-pill fmt-word">DOCX / DOC / RTF</span>
+            <span class="fmt-pill fmt-img">PNG / JPG / WEBP</span>
+            <span class="fmt-pill fmt-txt">TXT / MD / JSON</span>
           </div>
           <span class="btn-primary browse-btn">Browse Files</span>
         </label>

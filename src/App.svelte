@@ -488,19 +488,30 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
       'jpg',
       'jpeg',
       'webp',
+      'gif',
+      'bmp',
+      'tiff',
+      'svg',
       'docx',
       'doc',
+      'rtf',
       'xlsx',
       'xls',
       'csv',
+      'tsv',
       'txt',
       'md',
+      'json',
+      'xml',
+      'yaml',
+      'yml',
+      'log',
     ];
     const fileName = fileToUpload.name || '';
     const ext = (fileName.split('.').pop() || '').toLowerCase();
     if (fileName.includes('.') && !ALLOWED_EXTS.includes(ext)) {
       showError(
-        `Unsupported format (.${ext}). Supported formats: PDF, Word (DOCX, DOC), Excel/Data (XLSX, XLS, CSV), Images (PNG, JPG, WEBP), and Text (TXT, MD).`,
+        `Unsupported format (.${ext}). Cognifolio supports all business document formats: PDF, Office (DOCX, DOC, RTF), Spreadsheets (XLSX, XLS, CSV, TSV), Images (PNG, JPG, WEBP, GIF, BMP, TIFF, SVG), and Text/Code (TXT, MD, JSON, XML, YAML, LOG).`,
       );
       return;
     }
@@ -985,7 +996,7 @@ ${comparisonResult.key_recommendations.map((r) => `- ${r}`).join('\n')}
   <input
     type="file"
     id="global-file-input"
-    accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.doc,.xlsx,.xls,.csv,.txt,.md,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,text/markdown,image/png,image/jpeg,image/webp"
+    accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp,.tiff,.svg,.docx,.doc,.rtf,.xlsx,.xls,.csv,.tsv,.txt,.md,.json,.xml,.yaml,.yml,.log,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/rtf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values,text/plain,text/markdown,application/json,text/xml,application/xml,image/png,image/jpeg,image/webp,image/gif,image/bmp,image/tiff,image/svg+xml"
     on:change={(e) => handleFileUpload(e.target.files[0])}
     class="hidden"
   />

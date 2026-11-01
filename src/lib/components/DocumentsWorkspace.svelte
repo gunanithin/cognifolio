@@ -19,15 +19,17 @@
   ).length;
 
   $: sheetCount = documents.filter((d) =>
-    ['xlsx', 'xls', 'csv'].includes((d.file_type || '').toLowerCase().replace(/^\./, '')),
+    ['xlsx', 'xls', 'csv', 'tsv'].includes((d.file_type || '').toLowerCase().replace(/^\./, '')),
   ).length;
 
   $: docxCount = documents.filter((d) =>
-    ['docx', 'doc'].includes((d.file_type || '').toLowerCase().replace(/^\./, '')),
+    ['docx', 'doc', 'rtf'].includes((d.file_type || '').toLowerCase().replace(/^\./, '')),
   ).length;
 
   $: imgCount = documents.filter((d) =>
-    ['png', 'jpg', 'jpeg', 'webp'].includes((d.file_type || '').toLowerCase().replace(/^\./, '')),
+    ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'tiff', 'svg'].includes(
+      (d.file_type || '').toLowerCase().replace(/^\./, ''),
+    ),
   ).length;
 
   $: filteredDocuments = documents.filter((doc) => {
@@ -42,9 +44,10 @@
     if (docFilter === 'all') return true;
     const t = (doc.file_type || '').toLowerCase().replace(/^\./, '');
     if (docFilter === 'pdf') return t === 'pdf';
-    if (docFilter === 'spreadsheet') return ['xlsx', 'xls', 'csv'].includes(t);
-    if (docFilter === 'word') return ['docx', 'doc'].includes(t);
-    if (docFilter === 'image') return ['png', 'jpg', 'jpeg', 'webp'].includes(t);
+    if (docFilter === 'spreadsheet') return ['xlsx', 'xls', 'csv', 'tsv'].includes(t);
+    if (docFilter === 'word') return ['docx', 'doc', 'rtf'].includes(t);
+    if (docFilter === 'image')
+      return ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'tiff', 'svg'].includes(t);
     return true;
   });
 
@@ -69,10 +72,12 @@
     if (t === 'pdf') return { label: 'PDF', badgeClass: 'badge-rose' };
     if (t === 'xlsx' || t === 'xls') return { label: 'XLSX', badgeClass: 'badge-emerald' };
     if (t === 'csv') return { label: 'CSV', badgeClass: 'badge-emerald' };
+    if (t === 'tsv') return { label: 'TSV', badgeClass: 'badge-emerald' };
     if (t === 'docx') return { label: 'DOCX', badgeClass: 'badge-indigo' };
     if (t === 'doc') return { label: 'DOC', badgeClass: 'badge-indigo' };
-    if (['png', 'jpg', 'jpeg', 'webp'].includes(t))
-      return { label: 'IMG', badgeClass: 'badge-amber' };
+    if (t === 'rtf') return { label: 'RTF', badgeClass: 'badge-indigo' };
+    if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'tiff', 'svg'].includes(t))
+      return { label: t === 'svg' ? 'SVG' : 'IMG', badgeClass: 'badge-amber' };
     return { label: t ? t.toUpperCase() : 'TXT', badgeClass: 'badge-slate' };
   }
 
