@@ -533,6 +533,11 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
       }
     }
 
+    // Seamless transition: automatically switch to Upload tab so user sees real-time processing stepper
+    if (activeTab !== 'upload') {
+      switchTab('upload');
+    }
+
     isUploading = true;
     uploadStep = 1;
     errorMsg = '';
@@ -545,7 +550,9 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
         uploadStep = 3;
       }, 1400);
 
-      const res = await uploadDocument(fileToUpload, retentionDays);
+      const res = await uploadDocument(fileToUpload, retentionDays, {
+        skipProgress: true,
+      });
       uploadStep = 5;
       selectedDoc = res;
       currentUser = getCurrentUser();
