@@ -69,7 +69,7 @@
         <input
           type="file"
           id="file-input"
-          accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.doc,.xlsx,.xls,.csv,.txt,.md"
+          accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.doc,.xlsx,.xls,.csv,.txt,.md,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,text/markdown,image/png,image/jpeg,image/webp"
           on:change={handleFileSelected}
           disabled={isUploading}
         />
@@ -90,15 +90,15 @@
           </div>
           <h3>Drag &amp; Drop documents here</h3>
           <p>
-            Supported formats: PDF, Images (PNG, JPG, WEBP), Office &amp; Data (DOCX, XLSX, CSV),
-            &amp; Text (TXT, MD) up to 50MB
+            Supported formats: PDF, Images (PNG, JPG, WEBP), Office &amp; Data (DOCX, DOC, XLSX,
+            CSV), &amp; Text (TXT, MD) up to 50MB
           </p>
           <div class="format-badge-row">
             <span class="fmt-pill fmt-pdf">PDF</span>
             <span class="fmt-pill fmt-excel">XLSX / CSV</span>
-            <span class="fmt-pill fmt-word">DOCX</span>
+            <span class="fmt-pill fmt-word">DOCX / DOC</span>
             <span class="fmt-pill fmt-img">PNG / JPG</span>
-            <span class="fmt-pill fmt-txt">TXT</span>
+            <span class="fmt-pill fmt-txt">TXT / MD</span>
           </div>
           <span class="btn-primary browse-btn">Browse Files</span>
         </label>
