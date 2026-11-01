@@ -114,7 +114,7 @@
     if ($currentTab === 'compare') initCompareDefaults();
   }
 
-  // Deep-link document selection from URL query e.g. #/viewer?docId=...
+  // Deep-link document selection from URL query e.g. /viewer?docId=...
   $: if ($currentTab === 'viewer' && ($currentParams?.docId || $currentParams?.id)) {
     const targetId = $currentParams.docId || $currentParams.id;
     if (!selectedDoc || String(selectedDoc.id) !== String(targetId)) {
@@ -125,7 +125,7 @@
     }
   }
 
-  // Deep-link search query from URL e.g. #/search?q=...
+  // Deep-link search query from URL e.g. /search?q=...
   $: if ($currentTab === 'search' && $currentParams?.q && $currentParams.q !== searchQuery) {
     searchQuery = $currentParams.q;
     handleSearch();

@@ -89,12 +89,12 @@
 
     <!-- Center Navigation Links (Persistent Across Entire Product) -->
     <nav class="nav-links">
-      <a href="#product" on:click|preventDefault={() => handleNavClick('product')}>Product</a>
-      <a href="#features" on:click|preventDefault={() => handleNavClick('features')}>Features</a>
-      <a href="#workflow" on:click|preventDefault={() => handleNavClick('workflow')}>How it works</a
+      <a href="/product" on:click|preventDefault={() => handleNavClick('product')}>Product</a>
+      <a href="/features" on:click|preventDefault={() => handleNavClick('features')}>Features</a>
+      <a href="/workflow" on:click|preventDefault={() => handleNavClick('workflow')}>How it works</a
       >
       <a
-        href="#documents"
+        href="/documents"
         class="nav-workspace-link"
         class:active={activeTab !== 'portal'}
         on:click|preventDefault={handleLaunchStudio}
