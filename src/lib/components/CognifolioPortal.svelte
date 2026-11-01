@@ -82,7 +82,7 @@
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
       if (window.history && window.history.replaceState) {
-        window.history.replaceState(null, '', `#/${sectionId}`);
+        window.history.replaceState(null, '', `/${sectionId}`);
       }
     }
   }
@@ -99,7 +99,12 @@
         } else if (e.detail.anchor) {
           goToSection(e.detail.anchor);
         } else {
-          goToSection('product');
+          if (typeof window !== 'undefined') {
+            window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+            if (window.history && window.history.replaceState) {
+              window.history.replaceState(null, '', '/');
+            }
+          }
         }
       }}
       on:openSecurityGuide={openSecurityGuide}
