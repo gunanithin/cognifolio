@@ -125,10 +125,17 @@
     }
   }
 
+  let lastExecutedSearchQuery = '';
+
   // Deep-link search query from URL e.g. /search?q=...
-  $: if ($currentTab === 'search' && $currentParams?.q && $currentParams.q !== searchQuery) {
+  $: if (
+    $currentTab === 'search' &&
+    $currentParams?.q &&
+    $currentParams.q !== lastExecutedSearchQuery
+  ) {
+    lastExecutedSearchQuery = $currentParams.q;
     searchQuery = $currentParams.q;
-    handleSearch();
+    handleSearch($currentParams.q);
   }
 
   $: navTabs = [
@@ -528,9 +535,11 @@ PENALTY: Any breach of proprietary source code constitutes liquidated damages of
   }
 
   async function handleSearch(queryToSearch = null) {
-    const q = queryToSearch !== null ? queryToSearch : searchQuery;
-    if (!q || !q.trim()) return;
+    const raw = queryToSearch !== null ? queryToSearch : searchQuery;
+    const q = (raw || '').trim();
+    if (!q) return;
     searchQuery = q;
+    lastExecutedSearchQuery = q;
     isSearching = true;
     errorMsg = '';
     try {

@@ -32,6 +32,14 @@
     dispatch('search', { query: searchQuery });
   }
 
+  function handleKeyDown(e) {
+    const key = e.key || e.detail?.key;
+    if (key === 'Enter') {
+      if (typeof e.preventDefault === 'function') e.preventDefault();
+      handleSearch();
+    }
+  }
+
   function handleSelectExample(query) {
     searchQuery = query;
     dispatch('search', { query });
@@ -55,24 +63,27 @@
 
   <div class="search-input-section">
     <CCard spacious={true}>
-      <div class="flex flex-col md:flex-row gap-3 items-stretch">
+      <form
+        on:submit|preventDefault={handleSearch}
+        class="flex flex-col md:flex-row gap-3 items-stretch"
+      >
         <div class="flex-1">
           <CTextBox
             type="text"
             placeholder="e.g. 'that contract with automatic renewal penalty' or 'TCS cloud invoice'"
             bind:value={searchQuery}
-            on:keydown={(e) => e.key === 'Enter' && handleSearch()}
+            on:keydown={handleKeyDown}
           >
             <svelte:fragment slot="leading">
               <CIcon name="search" size={18} />
             </svelte:fragment>
           </CTextBox>
         </div>
-        <CButton variant="primary" loading={isSearching} on:click={handleSearch}>
+        <CButton type="submit" variant="primary" loading={isSearching} on:click={handleSearch}>
           <CIcon name="search" size={16} />
           <span>{isSearching ? 'Matching Vectors...' : 'Find Documents'}</span>
         </CButton>
-      </div>
+      </form>
 
       <div class="search-examples mt-4 flex flex-wrap items-center gap-2">
         <span class="text-xs font-semibold uppercase tracking-wider text-muted">Try asking:</span>
