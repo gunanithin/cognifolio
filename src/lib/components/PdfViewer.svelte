@@ -79,8 +79,7 @@
                 label: 'Section',
                 description: desc,
                 amount: item.amount,
-                value:
-                  desc + (item.amount ? ` ($${Number(item.amount).toLocaleString()})` : ''),
+                value: desc + (item.amount ? ` ($${Number(item.amount).toLocaleString()})` : ''),
                 rawVal: item,
                 ymin,
                 xmin,
@@ -146,8 +145,7 @@
             label: 'Line Item',
             description: desc,
             amount: item.amount,
-            value:
-              desc + (item.amount ? ` ($${Number(item.amount).toLocaleString()})` : ''),
+            value: desc + (item.amount ? ` ($${Number(item.amount).toLocaleString()})` : ''),
             rawVal: item,
             ymin,
             xmin,
@@ -189,9 +187,9 @@
     if (!type) return 'pdf';
     const clean = type.toLowerCase().replace(/^\./, '').trim();
     if (clean === 'pdf') return 'pdf';
-    if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'].includes(clean)) return 'image';
-    if (['xlsx', 'xls', 'csv'].includes(clean)) return 'spreadsheet';
-    if (['docx', 'doc'].includes(clean)) return 'docx';
+    if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'tiff', 'svg'].includes(clean)) return 'image';
+    if (['xlsx', 'xls', 'csv', 'tsv'].includes(clean)) return 'spreadsheet';
+    if (['docx', 'doc', 'rtf'].includes(clean)) return 'docx';
     return 'text';
   }
 
@@ -216,11 +214,27 @@
 
   $: activeSheet = parsedSheets[activeSheetIndex] || { name: 'Sheet 1', headers: [], rows: [] };
 
+  let gridPage = 1;
+  const gridPageSize = 100;
+
+  $: if (activeSheetIndex !== undefined || gridFilterQuery !== undefined) {
+    gridPage = 1;
+  }
+
   $: filteredRows = (activeSheet.rows || []).filter((row) => {
     if (!gridFilterQuery.trim()) return true;
     const q = gridFilterQuery.toLowerCase();
     return row.some((cell) => String(cell).toLowerCase().includes(q));
   });
+
+  $: totalGridPages = Math.max(1, Math.ceil(filteredRows.length / gridPageSize));
+  $: paginatedRows = filteredRows.slice((gridPage - 1) * gridPageSize, gridPage * gridPageSize);
+
+  function scrollToTopGrid() {
+    if (gridContainerRef) {
+      gridContainerRef.scrollTop = 0;
+    }
+  }
 
   // React to fileUrl changes
   $: if (fileUrl && fileCategory === 'pdf') {
@@ -647,10 +661,7 @@
       const byKeyOrId = boxes.find((b) => {
         const bKey = (b.key || '').toLowerCase().trim();
         const bId = (b.id || '').toLowerCase().trim();
-        return (
-          (qKey && (bKey === qKey || bId === qKey)) ||
-          (qId && (bId === qId || bKey === qId))
-        );
+        return (qKey && (bKey === qKey || bId === qKey)) || (qId && (bId === qId || bKey === qId));
       });
       if (byKeyOrId) return byKeyOrId;
     }
@@ -667,7 +678,10 @@
     for (const b of boxes) {
       let score = 0;
       const bDesc = (b.rawVal?.description || b.description || '').toLowerCase().trim();
-      const bVal = (b.value || '').replace(/\s*\(\$[\d,.]+\)$/, '').toLowerCase().trim();
+      const bVal = (b.value || '')
+        .replace(/\s*\(\$[\d,.]+\)$/, '')
+        .toLowerCase()
+        .trim();
       const bLabel = (b.label || '').toLowerCase().trim();
       const bKey = (b.key || '').replace(/_/g, ' ').toLowerCase().trim();
 
@@ -765,11 +779,12 @@
       }
 
       // I. Physical Geometry: Compactness Bonus vs Macro-Container Penalty
-      const boxArea = b.area !== undefined ? b.area : ((b.width || 0) * (b.height || 0)) / (1000 * 1000);
-      const boxH = b.height !== undefined ? b.height : (b.ymax - b.ymin);
-      const boxW = b.width !== undefined ? b.width : (b.xmax - b.xmin);
+      const boxArea =
+        b.area !== undefined ? b.area : ((b.width || 0) * (b.height || 0)) / (1000 * 1000);
+      const boxH = b.height !== undefined ? b.height : b.ymax - b.ymin;
+      const boxW = b.width !== undefined ? b.width : b.xmax - b.xmin;
 
-      if (b.isContainer || boxArea > 0.20 || boxH > 550) {
+      if (b.isContainer || boxArea > 0.2 || boxH > 550) {
         // Giant container / column section: penalize heavily to avoid highlighting entire sections
         score -= 220;
       } else if (boxArea < 0.12 && boxH < 350 && boxW < 600) {
@@ -831,6 +846,12 @@
         }
         if (firstMatchSheet !== -1) {
           activeSheetIndex = firstMatchSheet;
+          const matchRowIdx = (parsedSheets[firstMatchSheet].rows || []).findIndex((r) =>
+            r.some((cell) => isCellMatched(cell, info)),
+          );
+          if (matchRowIdx !== -1) {
+            gridPage = Math.floor(matchRowIdx / gridPageSize) + 1;
+          }
           locateStatus = `Found in ${parsedSheets[firstMatchSheet].name}`;
           await tick();
           scrollToFirstMatchedCell();
@@ -1519,11 +1540,30 @@
     if (tableLines.length === 0) {
       const csvLines = lines.filter((l) => !l.startsWith('---'));
       if (csvLines.length > 0) {
-        const firstLine = csvLines[0].split(',').map((c) => c.trim().replace(/^["']|["']$/g, ''));
-        const rows = csvLines
-          .slice(1)
-          .map((l) => l.split(',').map((c) => c.trim().replace(/^["']|["']$/g, '')));
-        return { headers: firstLine, rows };
+        let delimiter = ',';
+        const sampleText = csvLines.slice(0, 5).join('\n');
+        if (sampleText.includes('\t')) {
+          delimiter = '\t';
+        } else if (sampleText.includes(';') && !sampleText.includes(',')) {
+          delimiter = ';';
+        }
+        let headerIdx = csvLines.findIndex((l) => l.includes(delimiter));
+        if (headerIdx === -1) headerIdx = 0;
+        const firstLine = csvLines[headerIdx]
+          .split(delimiter)
+          .map((c) => c.trim().replace(/^["']|["']$/g, ''));
+        const rawRows = csvLines
+          .slice(headerIdx + 1)
+          .map((l) => l.split(delimiter).map((c) => c.trim().replace(/^["']|["']$/g, '')));
+        const maxCols = Math.max(firstLine.length, ...rawRows.map((r) => r.length), 0);
+        while (firstLine.length < maxCols) {
+          firstLine.push(`Column ${firstLine.length + 1}`);
+        }
+        const aligned = rawRows.map((r) => {
+          if (r.length < maxCols) return [...r, ...Array(maxCols - r.length).fill('')];
+          return r.slice(0, maxCols);
+        });
+        return { headers: firstLine, rows: aligned };
       }
       return { headers: ['Content'], rows: lines.map((l) => [l]) };
     }
@@ -1546,7 +1586,18 @@
       dataRows.push(cells);
     }
 
-    return { headers, rows: dataRows };
+    const maxCols = Math.max(headers.length, ...dataRows.map((r) => r.length), 0);
+    while (headers.length < maxCols) {
+      headers.push(`Column ${headers.length + 1}`);
+    }
+    const alignedRows = dataRows.map((row) => {
+      if (row.length < maxCols) {
+        return [...row, ...Array(maxCols - row.length).fill('')];
+      }
+      return row.slice(0, maxCols);
+    });
+
+    return { headers, rows: alignedRows };
   }
 
   function isCellMatched(cellVal, queryInput) {
@@ -2097,8 +2148,44 @@
               {/if}
             </div>
             <div class="grid-filter-stats">
-              Showing {filteredRows.length} of {activeSheet.rows.length} rows
+              {#if filteredRows.length > gridPageSize}
+                Showing {(gridPage - 1) * gridPageSize + 1}–{Math.min(
+                  gridPage * gridPageSize,
+                  filteredRows.length,
+                )} of {filteredRows.length} rows
+              {:else}
+                Showing {filteredRows.length} of {activeSheet.rows.length} rows
+              {/if}
             </div>
+            {#if totalGridPages > 1}
+              <div class="grid-pagination-controls">
+                <button
+                  type="button"
+                  class="grid-page-btn"
+                  disabled={gridPage === 1}
+                  on:click={() => {
+                    gridPage = Math.max(1, gridPage - 1);
+                    scrollToTopGrid();
+                  }}
+                  title="Previous Page"
+                >
+                  ‹
+                </button>
+                <span class="grid-page-indicator">Page {gridPage} of {totalGridPages}</span>
+                <button
+                  type="button"
+                  class="grid-page-btn"
+                  disabled={gridPage >= totalGridPages}
+                  on:click={() => {
+                    gridPage = Math.min(totalGridPages, gridPage + 1);
+                    scrollToTopGrid();
+                  }}
+                  title="Next Page"
+                >
+                  ›
+                </button>
+              </div>
+            {/if}
           </div>
 
           <div class="spreadsheet-grid-scroll" bind:this={gridContainerRef}>
@@ -2117,9 +2204,10 @@
                   </tr>
                 </thead>
                 <tbody>
-                  {#each filteredRows as row, rIdx}
+                  {#each paginatedRows as row, rIdx}
+                    {@const actualRowIdx = (gridPage - 1) * gridPageSize + rIdx + 1}
                     <tr>
-                      <td class="row-num-td">{rIdx + 1}</td>
+                      <td class="row-num-td">{actualRowIdx}</td>
                       {#each row as cell}
                         {@const isMatched = isCellMatched(cell, highlightQuery)}
                         <td class="data-cell {isMatched ? 'cell-matched' : ''}">
@@ -2680,6 +2768,42 @@
     font-family: var(--font-mono);
   }
 
+  .grid-pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+  }
+
+  .grid-page-btn {
+    background: #f0f0f0;
+    border: 1px solid #d4d4d4;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: #111111;
+    transition: all 0.15s ease-out;
+    line-height: 1.2;
+  }
+
+  .grid-page-btn:hover:not(:disabled) {
+    background: #e5e5e5;
+    border-color: #999999;
+  }
+
+  .grid-page-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .grid-page-indicator {
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    color: #555555;
+    white-space: nowrap;
+  }
+
   .spreadsheet-grid-scroll {
     flex: 1;
     overflow: auto;
@@ -2739,6 +2863,9 @@
     border-right: 1px solid #f0f0f0;
     border-bottom: 1px solid #f0f0f0;
     white-space: nowrap;
+    max-width: 480px;
+    overflow: hidden;
+    text-overflow: ellipsis;
     color: #222222;
     position: relative;
   }

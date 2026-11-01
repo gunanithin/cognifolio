@@ -24,9 +24,12 @@
     if (t === 'pdf') return { label: 'PDF', badgeClass: 'badge-rose' };
     if (t === 'xlsx' || t === 'xls') return { label: 'XLSX', badgeClass: 'badge-emerald' };
     if (t === 'csv') return { label: 'CSV', badgeClass: 'badge-emerald' };
-    if (t === 'docx' || t === 'doc') return { label: 'DOCX', badgeClass: 'badge-indigo' };
-    if (['png', 'jpg', 'jpeg', 'webp'].includes(t))
-      return { label: 'IMG', badgeClass: 'badge-amber' };
+    if (t === 'tsv') return { label: 'TSV', badgeClass: 'badge-emerald' };
+    if (t === 'docx') return { label: 'DOCX', badgeClass: 'badge-indigo' };
+    if (t === 'doc') return { label: 'DOC', badgeClass: 'badge-indigo' };
+    if (t === 'rtf') return { label: 'RTF', badgeClass: 'badge-indigo' };
+    if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'tiff', 'svg'].includes(t))
+      return { label: t === 'svg' ? 'SVG' : 'IMG', badgeClass: 'badge-amber' };
     return { label: t ? t.toUpperCase() : 'TXT', badgeClass: 'badge-slate' };
   }
 
