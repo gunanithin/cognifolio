@@ -326,21 +326,23 @@
   }
 
   .brand-name {
-    font-weight: 800;
+    font-family: var(--font-heading, 'Playfair Display', Georgia, serif);
+    font-weight: 600;
     font-size: 21px;
-    letter-spacing: -0.7px;
+    letter-spacing: -0.5px;
     color: var(--text-main) !important;
     line-height: 1.1;
   }
 
   .brand-byline {
+    font-family: var(--font-mono);
     display: block;
     text-align: left;
     font-size: 8.5px;
     letter-spacing: 1.8px;
     color: var(--text-dim);
     margin-top: 2px;
-    font-weight: 700;
+    font-weight: 600;
     background: transparent;
     border: none;
     padding: 0;
@@ -392,11 +394,12 @@
   }
 
   .nav-free-badge {
+    font-family: var(--font-mono);
     background: var(--status-amber-bg);
     color: var(--status-amber-text);
     border: 1px solid var(--status-amber-border);
     font-size: 10px;
-    font-weight: 700;
+    font-weight: 600;
     padding: 1px 5px;
     border-radius: 4px;
     letter-spacing: 0.5px;

@@ -362,7 +362,8 @@
         <div class="kicker">DESIGNED FOR HIGH-STAKES ACCURACY</div>
         <h2>Engineered for every document format.</h2>
         <p class="intro">
-          Whether parsing quarterly earnings, comparing commercial leases, or analyzing scanned invoices, Cognifolio brings clarity to your workflow.
+          Whether parsing quarterly earnings, comparing commercial leases, or analyzing scanned
+          invoices, Cognifolio brings clarity to your workflow.
         </p>
 
         <div class="cards">
@@ -376,7 +377,8 @@
             <div class="icon">📊</div>
             <h3>Financial Statements &amp; 10-K Audits</h3>
             <p>
-              Instantly parse balance sheets, cash flows, and SEC filings. Query metrics and export clean table structures without manual re-keying.
+              Instantly parse balance sheets, cash flows, and SEC filings. Query metrics and export
+              clean table structures without manual re-keying.
             </p>
           </div>
 
@@ -390,7 +392,8 @@
             <div class="icon">⚖️</div>
             <h3>Legal Contracts &amp; Redline Diff</h3>
             <p>
-              Compare agreements side-by-side. Uncover hidden indemnities, termination clause modifications, and governing law shifts.
+              Compare agreements side-by-side. Uncover hidden indemnities, termination clause
+              modifications, and governing law shifts.
             </p>
           </div>
 
@@ -404,7 +407,8 @@
             <div class="icon">📑</div>
             <h3>Spreadsheets &amp; Data Grids</h3>
             <p>
-              Upload XLSX and CSV models. Switch between sheets, filter rows in real-time, and get AI answers contextualized by spreadsheet coordinates.
+              Upload XLSX and CSV models. Switch between sheets, filter rows in real-time, and get
+              AI answers contextualized by spreadsheet coordinates.
             </p>
           </div>
 
@@ -418,7 +422,8 @@
             <div class="icon">📷</div>
             <h3>Scanned Receipts &amp; OCR Images</h3>
             <p>
-              Transform low-resolution photos and scanned paper receipts into crisp, searchable digital records with multimodal OCR.
+              Transform low-resolution photos and scanned paper receipts into crisp, searchable
+              digital records with multimodal OCR.
             </p>
           </div>
 
@@ -432,7 +437,8 @@
             <div class="icon">🛡️</div>
             <h3>Audit-Ready PII Redaction</h3>
             <p>
-              Automatically identify PII across legal documents and produce permanently redacted PDFs with verifiable black overlays.
+              Automatically identify PII across legal documents and produce permanently redacted
+              PDFs with verifiable black overlays.
             </p>
           </div>
 
@@ -446,7 +452,8 @@
             <div class="icon">⚡</div>
             <h3>Sub-Second Portfolio Search</h3>
             <p>
-              Search across thousands of document pages simultaneously with semantic vector retrieval that understands intent, not just keywords.
+              Search across thousands of document pages simultaneously with semantic vector
+              retrieval that understands intent, not just keywords.
             </p>
           </div>
         </div>
@@ -459,7 +466,8 @@
         <div class="kicker">FREQUENTLY ASKED QUESTIONS</div>
         <h2>Everything you need to know.</h2>
         <p class="intro">
-          Learn how Cognifolio uses AI to analyse PDFs, protect your data, and deliver visual citations.
+          Learn how Cognifolio uses AI to analyse PDFs, protect your data, and deliver visual
+          citations.
         </p>
 
         <div class="faq-list">
@@ -548,11 +556,7 @@
   .cognifolio-landing-root {
     background: var(--bg);
     color: var(--text);
-    font-family:
-      Inter,
-      system-ui,
-      -apple-system,
-      sans-serif;
+    font-family: var(--font-body);
     font-size: 16px;
     line-height: 1.6;
     min-height: 100vh;
@@ -597,7 +601,7 @@
     border-radius: 9px;
     padding: 12px 18px;
     font-size: 13px;
-    font-weight: 700;
+    font-weight: 600;
     border: 1px solid var(--border-dark);
     cursor: pointer;
     background: transparent;
@@ -681,24 +685,21 @@
     padding: 6px 13px;
     color: var(--status-amber-text);
     font-size: 10px;
-    font-weight: 750;
-    letter-spacing: 1.3px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
     margin-bottom: 4px;
+    font-family: var(--font-mono);
   }
 
   .hero-title,
   .hero h1 {
-    font-family:
-      Inter,
-      system-ui,
-      -apple-system,
-      sans-serif !important;
-    font-size: clamp(43px, 5vw, 67px);
-    line-height: 1.04;
-    letter-spacing: -3px;
+    font-family: var(--font-heading, 'Playfair Display', Georgia, serif);
+    font-size: clamp(38px, 4.4vw, 56px);
+    line-height: 1.1;
+    letter-spacing: -0.015em;
     margin: 24px 0 20px;
-    font-weight: 800;
-    color: var(--text-main) !important;
+    font-weight: 600;
+    color: var(--text-main);
   }
 
   .hero-title em,
@@ -732,6 +733,7 @@
 
   .trust b {
     color: var(--amber);
+    font-weight: 600;
   }
 
   /* Active Vault Strip */
@@ -745,8 +747,9 @@
   }
 
   .vault-label {
+    font-family: var(--font-mono);
     font-size: 9.5px;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: 1.2px;
     color: var(--amber);
   }
@@ -779,6 +782,7 @@
   }
 
   .chip-name {
+    font-family: var(--font-mono);
     max-width: 140px;
     white-space: nowrap;
     overflow: hidden;
@@ -834,24 +838,21 @@
   }
 
   .kicker {
+    font-family: var(--font-mono);
     color: var(--amber);
     font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 1.6px;
+    font-weight: 600;
+    letter-spacing: 1.4px;
     text-transform: uppercase;
   }
 
   .content h2 {
-    font-family:
-      Inter,
-      system-ui,
-      -apple-system,
-      sans-serif !important;
-    font-size: clamp(30px, 4vw, 43px);
-    line-height: 1.15;
-    letter-spacing: -1.7px;
+    font-family: var(--font-heading, 'Playfair Display', Georgia, serif);
+    font-size: clamp(26px, 3.2vw, 36px);
+    line-height: 1.2;
+    letter-spacing: -0.015em;
     margin: 12px 0;
-    font-weight: 800;
+    font-weight: 600;
     color: var(--text-main) !important;
   }
 
@@ -900,15 +901,11 @@
   }
 
   .card h3 {
-    font-family:
-      Inter,
-      system-ui,
-      -apple-system,
-      sans-serif !important;
-    font-size: 15px;
+    font-family: var(--font-heading, 'Playfair Display', Georgia, serif);
+    font-size: 15.5px;
     margin: 15px 0 7px;
     color: var(--text-main) !important;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   .card p,
@@ -944,22 +941,19 @@
   }
 
   .num {
+    font-family: var(--font-mono);
     color: var(--amber);
     font-size: 11px;
     letter-spacing: 1.5px;
-    font-weight: 800;
+    font-weight: 600;
   }
 
   .step h3 {
-    font-family:
-      Inter,
-      system-ui,
-      -apple-system,
-      sans-serif !important;
-    font-size: 17px;
+    font-family: var(--font-heading, 'Playfair Display', Georgia, serif);
+    font-size: 16.5px;
     margin: 8px 0;
     color: var(--text-main) !important;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   /* Commercial CTA Box */
@@ -976,14 +970,11 @@
   }
 
   .cta h2 {
-    font-family:
-      Inter,
-      system-ui,
-      -apple-system,
-      sans-serif !important;
+    font-family: var(--font-heading, 'Playfair Display', Georgia, serif);
     margin: 8px 0;
-    font-size: clamp(26px, 3.5vw, 36px);
-    font-weight: 800;
+    font-size: clamp(24px, 2.8vw, 32px);
+    font-weight: 600;
+    letter-spacing: -0.015em;
     color: var(--text-main) !important;
   }
 
@@ -1079,8 +1070,9 @@
     cursor: pointer;
     text-align: left;
     color: var(--text-main);
+    font-family: var(--font-heading, 'Playfair Display', Georgia, serif);
     font-size: 16px;
-    font-weight: 700;
+    font-weight: 600;
     transition: color 0.15s ease;
   }
 
