@@ -83,4 +83,17 @@ describe('CognifolioPortal Component Tests', () => {
 
     expect(html).toContain('Pricing &amp; Limits');
   });
+
+  it('renders portal layout screen root with semantic headline elements matching app typography', () => {
+    const { html } = render(CognifolioPortal, {
+      props: {
+        documents: [],
+        currentUser: null,
+      },
+    });
+
+    expect(html).toContain('cognifolio-landing-root');
+    expect(html).toContain('hero-title');
+    expect(html).toContain('eyebrow');
+  });
 });
